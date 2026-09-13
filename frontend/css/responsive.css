@@ -1,0 +1,73 @@
+/* 
+ * FloodRisk AI - Responsive Stylesheet
+ * Responsive breakpoints for tablet, mobile, and wide desktop screens
+ */
+
+@media (max-width: 1200px) {
+  .top-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .main-grid {
+    grid-template-columns: 290px 1fr;
+  }
+  
+  .bottom-split-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 992px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    box-shadow: 10px 0 25px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-content {
+    padding: 16px 18px 24px 18px;
+  }
+  
+  .top-header {
+    padding: 12px 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .top-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .header-clock {
+    display: none;
+  }
+  
+  .model-charts-split {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .model-perf-metrics-strip {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  
+  .perf-metric-item {
+    min-width: 30%;
+  }
+  
+  .map-container-wrapper {
+    height: 260px;
+  }
+}
