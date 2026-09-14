@@ -9,7 +9,10 @@ import ModelPerformance from './components/ModelPerformance';
 import RecentPredictions from './components/RecentPredictions';
 import InfoBanner from './components/InfoBanner';
 import Modal from './components/Modal';
-import MiraBhayandarRiskMap from './components/MiraBhayandarRiskMap';
+import GlobeRiskMap from './components/GlobeRiskMap';
+import HistoricalDataView from './components/HistoricalDataView';
+import AlertsReportsView from './components/AlertsReportsView';
+import AboutProjectView from './components/AboutProjectView';
 
 import {
   predictFloodRisk,
@@ -22,6 +25,14 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [modalState, setModalState] = useState({ isOpen: false, type: null });
+
+  // Active Geographic Zone for Risk Map and Location-Specific History
+  const [activeLocation, setActiveLocation] = useState({
+    name: 'Mira Bhayandar',
+    country: 'India',
+    lat: 19.2952,
+    lng: 72.8544
+  });
 
   // Input Parameters State
   const [params, setParams] = useState({
@@ -36,6 +47,7 @@ export default function App() {
     longitude: 77.59,
     location: 'Bengaluru, Karnataka'
   });
+
 
   // Current Prediction State
   const [prediction, setPrediction] = useState({
@@ -82,6 +94,15 @@ export default function App() {
       ...prev,
       [field]: value
     }));
+    if (field === 'location') {
+      setActiveLocation(prev => ({ ...prev, name: value }));
+    } else if (field === 'latitude') {
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed)) setActiveLocation(prev => ({ ...prev, lat: parsed }));
+    } else if (field === 'longitude') {
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed)) setActiveLocation(prev => ({ ...prev, lng: parsed }));
+    }
   };
 
   // Handle Prediction Action (calls FastAPI POST /api/predict)
@@ -110,6 +131,13 @@ export default function App() {
 
   // Handle Station selection from Map
   const handleSelectStation = (station) => {
+    setActiveLocation({
+      name: station.name,
+      country: 'Karnataka, India',
+      lat: station.lat,
+      lng: station.lng
+    });
+
     const updatedParams = {
       rainfall24h: station.r24,
       rainfall72h: station.r72,
@@ -148,18 +176,25 @@ export default function App() {
     }
   };
 
-  const handleMiraPredict = (miraData) => {
+  const handleGlobePredict = (locData) => {
+    setActiveLocation({
+      name: locData.name,
+      country: locData.country || '',
+      lat: locData.lat,
+      lng: locData.lng
+    });
+
     const updatedParams = {
-      rainfall24h: miraData.r24,
-      rainfall72h: miraData.r72,
-      temperature: miraData.temp,
-      humidity: miraData.hum,
-      windSpeed: 18,
-      pressure: 1002,
-      elevation: miraData.elev,
-      latitude: miraData.lat,
-      longitude: miraData.lng,
-      location: `${miraData.name}, Maharashtra`
+      rainfall24h: locData.r24 ?? locData.rainfall24h ?? 85,
+      rainfall72h: locData.r72 ?? locData.rainfall72h ?? 190,
+      temperature: locData.temp ?? locData.temperature ?? 25,
+      humidity: locData.hum ?? locData.humidity ?? 82,
+      windSpeed: locData.wind ?? locData.windSpeed ?? 15,
+      pressure: locData.pressure ?? 1008,
+      elevation: locData.elev ?? locData.elevation ?? 20,
+      latitude: locData.lat,
+      longitude: locData.lng,
+      location: locData.country ? `${locData.name}, ${locData.country}` : locData.name
     };
     setParams(updatedParams);
     setActiveTab('dashboard');
@@ -172,6 +207,7 @@ export default function App() {
       }, 100);
     });
   };
+
 
   return (
     <div className="app-container">
@@ -187,18 +223,41 @@ export default function App() {
       <main className="main-wrapper">
         <Header
           onToggleSidebar={() => setSidebarOpen(prev => !prev)}
-          onOpenAlerts={() => setModalState({ isOpen: true, type: 'alerts' })}
-          onOpenProfile={() => setModalState({ isOpen: true, type: 'about' })}
+          onOpenAlerts={() => setActiveTab('alerts')}
+          onOpenProfile={() => setActiveTab('about')}
         />
 
         {activeTab === 'map' ? (
-          /* DEDICATED MIRA BHAYANDAR RISK MAP VIEW */
-          <MiraBhayandarRiskMap
+          /* 3D WORLD GLOBE & CARTOGRAPHIC GIS ATLAS VIEW */
+          <GlobeRiskMap
             onBackToDashboard={() => setActiveTab('dashboard')}
-            onSelectLocationForPredict={handleMiraPredict}
+            onSelectLocationForPredict={handleGlobePredict}
+            activeLocation={activeLocation}
+            onLocationChange={setActiveLocation}
+            onOpenHistoryModal={() => setActiveTab('historical')}
+          />
+        ) : activeTab === 'historical' ? (
+          /* FULL-PAGE HISTORICAL DATA & DISASTER REGISTRY VIEW */
+          <HistoricalDataView
+            currentLocation={activeLocation}
+            onBackToDashboard={() => setActiveTab('dashboard')}
+          />
+        ) : activeTab === 'alerts' || activeTab === 'reports' ? (
+          /* FULL-PAGE ALERTS SCORING & 7-DAY RAINFALL REPORTS VIEW */
+          <AlertsReportsView
+            currentLocation={activeLocation}
+            params={params}
+            prediction={prediction}
+            onBackToDashboard={() => setActiveTab('dashboard')}
+          />
+        ) : activeTab === 'about' ? (
+          /* FULL-PAGE ABOUT PROJECT & ARCHITECTURE GUIDE VIEW */
+          <AboutProjectView
+            onBackToDashboard={() => setActiveTab('dashboard')}
           />
         ) : (
           /* STANDARD DASHBOARD VIEW */
+
           <div className="dashboard-content">
             {/* TOP 4 METRICS CARDS */}
             <TopMetrics
@@ -245,12 +304,16 @@ export default function App() {
         )}
       </main>
 
-      {/* REUSABLE MODAL */}
+      {/* REUSABLE MODAL (FOR FLOATING AUDIT/INSPECTIONS) */}
       <Modal
         isOpen={modalState.isOpen}
         type={modalState.type}
         onClose={() => setModalState({ isOpen: false, type: null })}
+        currentLocation={activeLocation}
+        params={params}
+        prediction={prediction}
       />
+
     </div>
   );
 }

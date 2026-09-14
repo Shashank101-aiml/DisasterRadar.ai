@@ -36,3 +36,8 @@ Thumbs.db
 
 # Backup folders
 frontend-vanilla/
+
+# Large datasets (>100MB) and local databases
+*.db
+*.sqlite
+modis_flood_features_paling cleaning (1).csv

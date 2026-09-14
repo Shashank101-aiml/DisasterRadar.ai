@@ -17,11 +17,12 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap }) {
       attributionControl: false
     });
 
-    // CartoDB Positron Light Tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // OpenStreetMap Clean Tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
-      subdomains: 'abcd'
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+
 
     mapInstanceRef.current = map;
 
@@ -102,9 +103,10 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap }) {
             gap: '5px'
           }}
         >
-          <span>Explore Mira Bhayandar Flood Map</span>
+          <span>Explore 3D World Globe Flood Radar</span>
           <span>→</span>
         </button>
+
       </div>
 
       <div className="map-container-wrapper">
