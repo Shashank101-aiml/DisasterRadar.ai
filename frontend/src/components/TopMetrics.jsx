@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function TopMetrics({ probability, riskLevel, location, latitude, longitude, recommendation }) {
+export default function TopMetrics({ probability, riskLevel, location, latitude, longitude, recommendation, onOpenExplainer }) {
   // Compute SVG Donut Progress Circle offset
   const radius = 26;
   const circumference = 2 * Math.PI * radius;
@@ -97,11 +97,30 @@ export default function TopMetrics({ probability, riskLevel, location, latitude,
 
       {/* 4. Recommendation */}
       <div className="card metric-card recommendation-card">
-        <div className="rec-header">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-          </svg>
-          <span>Recommendation</span>
+        <div className="rec-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+            </svg>
+            <span>Recommendation</span>
+          </div>
+          {onOpenExplainer && (
+            <button
+              onClick={onOpenExplainer}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                borderRadius: '4px',
+                color: '#ffffff',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '2px 6px',
+                cursor: 'pointer'
+              }}
+            >
+              AI Flood Evacuation SOP →
+            </button>
+          )}
         </div>
         <div className="rec-body">
           {recommendation || 'Monitor rainfall and drainage conditions closely. Issue early warning for low-lying areas and prepare emergency response resources.'}

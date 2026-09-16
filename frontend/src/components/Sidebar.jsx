@@ -43,6 +43,14 @@ export default function Sidebar({ isOpen, activeTab, onSelectTab, onOpenModal })
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
       </svg>
     )},
+    { id: 'explainer', label: 'AI Flood Explainer (CO4|L6)', icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12c2.5-2.5 5-2.5 7.5 0s5 2.5 7.5 0 5-2.5 5-2.5"/>
+        <path d="M2 17c2.5-2.5 5-2.5 7.5 0s5 2.5 7.5 0 5-2.5 5-2.5"/>
+        <path d="M12 3v5"/>
+        <path d="M10 5l2-2 2 2"/>
+      </svg>
+    )},
     { id: 'about', label: 'About Project', icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/>

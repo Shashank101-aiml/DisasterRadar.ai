@@ -15,6 +15,7 @@ import AlertsReportsView from './components/AlertsReportsView';
 import AboutProjectView from './components/AboutProjectView';
 import ModelPerformanceView from './components/ModelPerformanceView';
 import PredictRiskView from './components/PredictRiskView';
+import AiExplainerView from './components/AiExplainerView';
 
 import {
   predictFloodRisk,
@@ -266,6 +267,17 @@ export default function App() {
               if (newPred) setPrediction(newPred);
             }}
           />
+        ) : activeTab === 'explainer' ? (
+          /* FULL-PAGE AI EXPLAINER & EVACUATION PROTOCOLS + SYLLABUS AUDIT (CO4 | L6) */
+          <AiExplainerView
+            currentLocation={activeLocation}
+            params={params}
+            prediction={prediction}
+            onBackToDashboard={() => setActiveTab('dashboard')}
+            onOpenPredict={() => setActiveTab('predict')}
+            onOpenMap={() => setActiveTab('map')}
+            onOpenPerformance={() => setActiveTab('performance')}
+          />
         ) : activeTab === 'about' ? (
           /* FULL-PAGE ABOUT PROJECT & ARCHITECTURE GUIDE VIEW */
           <AboutProjectView
@@ -283,6 +295,7 @@ export default function App() {
               latitude={prediction.latitude}
               longitude={prediction.longitude}
               recommendation={prediction.recommendation}
+              onOpenExplainer={() => setActiveTab('explainer')}
             />
 
             {/* TWO-COLUMN GRID */}
