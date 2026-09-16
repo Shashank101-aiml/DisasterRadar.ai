@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ModelPerformance({ metrics }) {
+export default function ModelPerformance({ metrics, onOpenFullPerformance }) {
   const modelData = metrics || {
     modelName: 'XGBoost',
     accuracy: 0.91,
@@ -49,7 +49,30 @@ export default function ModelPerformance({ metrics }) {
 
   return (
     <div className="card" id="modelPerfCard">
-      <div className="card-title">Model Performance (Best Model - XGBoost)</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div className="card-title" style={{ margin: 0 }}>Model Performance (Best Model - XGBoost)</div>
+        {onOpenFullPerformance && (
+          <button
+            onClick={onOpenFullPerformance}
+            style={{
+              background: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              borderRadius: '6px',
+              color: '#0284c7',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            Interactive Studio →
+          </button>
+        )}
+      </div>
+
 
       {/* 5 Metrics Strip */}
       <div className="model-perf-metrics-strip">

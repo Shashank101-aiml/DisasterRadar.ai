@@ -1,37 +1,122 @@
-import React, { useState, useEffect } from 'react';
-import { fetchAlertScoring, fetchRainfallImpact, fetchWeeklyReports } from '../services/api';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  fetchAlertScoring,
+  fetchRainfallImpact,
+  fetchWeeklyReports,
+  geocodeLocation,
+  fetchGlobalLiveTelemetry,
+  predictFloodRisk
+} from '../services/api';
 
-export default function AlertsReportsView({ currentLocation, params, prediction, onBackToDashboard, isEmbeddedInModal = false }) {
+// Preset popular monitoring locations for 1-click quick switching
+const PRESET_LOCATIONS = [
+  { name: 'Mira Bhayandar', country: 'Maharashtra, India', lat: 19.2952, lng: 72.8544 },
+  { name: 'Mumbai', country: 'Maharashtra, India', lat: 19.0760, lng: 72.8777 },
+  { name: 'Bengaluru', country: 'Karnataka, India', lat: 12.9716, lng: 77.5946 },
+  { name: 'Chennai', country: 'Tamil Nadu, India', lat: 13.0827, lng: 80.2707 },
+  { name: 'Mangaluru', country: 'Karnataka, India', lat: 12.9141, lng: 74.8560 },
+  { name: 'Kolkata', country: 'West Bengal, India', lat: 22.5726, lng: 88.3639 },
+  { name: 'Delhi', country: 'India', lat: 28.6139, lng: 77.2090 },
+  { name: 'London', country: 'United Kingdom', lat: 51.5074, lng: -0.1278 },
+  { name: 'Tokyo', country: 'Japan', lat: 35.6762, lng: 139.6503 }
+];
+
+export default function AlertsReportsView({
+  currentLocation,
+  params,
+  prediction,
+  onBackToDashboard,
+  isEmbeddedInModal = false,
+  onLocationChange
+}) {
   const [subTab, setSubTab] = useState('threshold');
   const [alertScore, setAlertScore] = useState(null);
   const [rainfallImpact, setRainfallImpact] = useState(null);
   const [weeklyReport, setWeeklyReport] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const rawLoc = currentLocation?.name || (typeof currentLocation === 'string' ? currentLocation : 'Mira Bhayandar');
-  const locName = rawLoc.split(',')[0].trim();
-  const locCountry = currentLocation?.country || '';
-  const locLat = currentLocation?.lat !== undefined ? currentLocation.lat : 19.295;
-  const locLng = currentLocation?.lng !== undefined ? currentLocation.lng : 72.854;
+  // Active Location & Telemetry State
+  const [activeLoc, setActiveLoc] = useState(() => {
+    if (currentLocation && typeof currentLocation === 'object') return currentLocation;
+    if (typeof currentLocation === 'string') return { name: currentLocation, country: '', lat: 19.2952, lng: 72.8544 };
+    return { name: 'Mira Bhayandar', country: 'India', lat: 19.2952, lng: 72.8544 };
+  });
 
-  const curProb = alertScore?.probability ?? prediction?.probability ?? 78.4;
+  const [activeTelemetry, setActiveTelemetry] = useState(params || {
+    rainfall24h: 85,
+    rainfall72h: 190,
+    temperature: 25,
+    humidity: 82,
+    windSpeed: 12,
+    pressure: 1005,
+    elevation: 15,
+    latitude: 19.2952,
+    longitude: 72.8544
+  });
+
+  const [activePrediction, setActivePrediction] = useState(prediction || {
+    probability: 78.4,
+    riskLevel: 'HIGH'
+  });
+
+  // Location Search & Change Panel State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [showSearchBox, setShowSearchBox] = useState(false);
+  const [statusNotification, setStatusNotification] = useState('');
+  const [customLat, setCustomLat] = useState('');
+  const [customLng, setCustomLng] = useState('');
+
+  const searchInputRef = useRef(null);
+
+  // Sync props if parent changes
+  useEffect(() => {
+    if (currentLocation) {
+      if (typeof currentLocation === 'object') setActiveLoc(currentLocation);
+      else if (typeof currentLocation === 'string') setActiveLoc({ name: currentLocation, country: '', lat: 19.2952, lng: 72.8544 });
+    }
+  }, [currentLocation]);
+
+  useEffect(() => {
+    if (params) setActiveTelemetry(params);
+  }, [params]);
+
+  useEffect(() => {
+    if (prediction) setActivePrediction(prediction);
+  }, [prediction]);
+
+  const rawLoc = activeLoc?.name || (typeof activeLoc === 'string' ? activeLoc : 'Mira Bhayandar');
+  const locName = rawLoc.split(',')[0].trim();
+  const locCountry = activeLoc?.country || '';
+  const locLat = activeLoc?.lat !== undefined ? Number(activeLoc.lat) : 19.295;
+  const locLng = activeLoc?.lng !== undefined ? Number(activeLoc.lng) : 72.854;
+
+  const currentR24 = Number(activeTelemetry?.rainfall24h ?? 85.0);
+  const currentR72 = Number(activeTelemetry?.rainfall72h ?? 190.0);
+  const currentElev = Number(activeTelemetry?.elevation ?? 15.0);
+
+  const curProb = alertScore?.probability ?? activePrediction?.probability ?? 78.4;
   const isThresholdCrossed = curProb >= 50.0;
   const deltaThreshold = Math.round((curProb - 50.0) * 10) / 10;
 
+  // Fetch alert scoring and weekly reports on load or location change
   useEffect(() => {
     setLoading(true);
     const payload = {
-      rainfall24h: params?.rainfall24h ?? 85.0,
-      rainfall72h: params?.rainfall72h ?? 190.0,
-      temperature: params?.temperature ?? 25.0,
-      humidity: params?.humidity ?? 82.0,
-      windSpeed: params?.windSpeed ?? 12.0,
-      pressure: params?.pressure ?? 1005.0,
-      elevation: params?.elevation ?? 15.0,
+      rainfall24h: currentR24,
+      rainfall72h: currentR72,
+      temperature: activeTelemetry?.temperature ?? 25.0,
+      humidity: activeTelemetry?.humidity ?? 82.0,
+      windSpeed: activeTelemetry?.windSpeed ?? 12.0,
+      pressure: activeTelemetry?.pressure ?? 1005.0,
+      elevation: currentElev,
       latitude: locLat,
       longitude: locLng,
       location: locName,
-      probability: prediction?.probability ?? 78.4
+      probability: curProb
     };
 
     Promise.all([
@@ -45,42 +130,289 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
     }).finally(() => {
       setLoading(false);
     });
-  }, [currentLocation, params, prediction]);
+  }, [locName, locLat, locLng, currentR24, currentR72, currentElev]);
 
-  // Fallback 7-day retrospective records
+  // Handle Search Input Change with Debounced Geocoding
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+    if (!val.trim()) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await geocodeLocation(val);
+        setSearchResults(results || []);
+        setShowDropdown((results || []).length > 0);
+      } catch (err) {
+        console.warn('Geocoding search failed:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  };
+
+  // Switch to new location, fetch live telemetry & compute prediction
+  const handleApplyLocation = async (locItem) => {
+    setShowDropdown(false);
+    setSearchQuery('');
+    setShowSearchBox(false);
+    setIsFetchingLocation(true);
+    setStatusNotification(`⚡ Querying live Open-Meteo rainfall & Copernicus DEM elevation for ${locItem.name}...`);
+
+    try {
+      // 1. Fetch live telemetry from Open-Meteo and Copernicus DEM APIs
+      const live = await fetchGlobalLiveTelemetry(locItem.lat, locItem.lng);
+
+      const newParams = {
+        rainfall24h: live.rainfall24h,
+        rainfall72h: live.rainfall72h,
+        temperature: live.temperature,
+        humidity: live.humidity,
+        windSpeed: live.windSpeed,
+        pressure: live.pressure,
+        elevation: live.elevation,
+        latitude: locItem.lat,
+        longitude: locItem.lng,
+        location: `${locItem.name}${locItem.country ? ', ' + locItem.country : ''}`
+      };
+
+      // 2. Feed parameters into the XGBoost AI model
+      const predResult = await predictFloodRisk(newParams);
+
+      // 3. Update local states
+      setActiveLoc(locItem);
+      setActiveTelemetry(newParams);
+      setActivePrediction(predResult);
+
+      // 4. Update alert scoring & sensitivity models
+      const payload = {
+        ...newParams,
+        probability: predResult.probability
+      };
+
+      const [score, impact, weekly] = await Promise.all([
+        fetchAlertScoring(payload),
+        fetchRainfallImpact(payload),
+        fetchWeeklyReports(locItem.name, locItem.lat, locItem.lng)
+      ]);
+
+      if (score) setAlertScore(score);
+      if (impact) setRainfallImpact(impact);
+      if (weekly) setWeeklyReport(weekly);
+
+      setStatusNotification(`✓ Loaded ${locItem.name}: Elevation ${live.elevation}m, 24h Rain ${live.rainfall24h}mm (ML Risk: ${predResult.probability}%)`);
+      setTimeout(() => setStatusNotification(''), 4500);
+
+      // 5. Notify parent app if callback provided
+      onLocationChange?.(locItem, newParams, predResult);
+    } catch (err) {
+      console.error('Failed to update location:', err);
+      setStatusNotification(`⚠ Error querying telemetry for ${locItem.name}. Please try again.`);
+      setTimeout(() => setStatusNotification(''), 4500);
+    } finally {
+      setIsFetchingLocation(false);
+    }
+  };
+
+  // Direct Coordinates Search Form
+  const handleCustomCoordinatesSubmit = (e) => {
+    e.preventDefault();
+    const lat = parseFloat(customLat);
+    const lng = parseFloat(customLng);
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      alert('Please enter valid coordinates (-90 to 90 for Latitude, -180 to 180 for Longitude)');
+      return;
+    }
+    handleApplyLocation({
+      name: `Coordinate (${lat.toFixed(3)}°, ${lng.toFixed(3)}°)`,
+      country: 'Custom Location',
+      lat: lat,
+      lng: lng
+    });
+    setCustomLat('');
+    setCustomLng('');
+  };
+
+  // Generate dynamic 7-day retrospective records for the selected location
+  const today = new Date();
   const weekRecords = weeklyReport?.weekly_records || [
-    { id: 'w1', date: '2026-09-09', day_name: 'Wed', rainfall_24h_mm: 45.0, rainfall_72h_mm: 110.0, probability: 38.2, threshold_crossed: false, risk_level: 'LOW', peak_water_depth_m: 0.2, status_summary: 'Intermittent monsoon showers; nallas flowing normally' },
-    { id: 'w2', date: '2026-09-10', day_name: 'Thu', rainfall_24h_mm: 72.0, rainfall_72h_mm: 165.0, probability: 54.5, threshold_crossed: true, risk_level: 'MODERATE', peak_water_depth_m: 0.5, status_summary: 'Tidal confluence; 50% threshold crossed; culverts backflowing' },
-    { id: 'w3', date: '2026-09-11', day_name: 'Fri', rainfall_24h_mm: 148.0, rainfall_72h_mm: 265.0, probability: 84.6, threshold_crossed: true, risk_level: 'CRITICAL', peak_water_depth_m: 1.4, status_summary: 'Severe cloudburst; underpass paralyzed; emergency pumps active' },
-    { id: 'w4', date: '2026-09-12', day_name: 'Sat', rainfall_24h_mm: 115.0, rainfall_72h_mm: 310.0, probability: 76.2, threshold_crossed: true, risk_level: 'HIGH', peak_water_depth_m: 1.0, status_summary: 'Persistent runoff; municipal road sweepers clearing choke points' },
-    { id: 'w5', date: '2026-09-13', day_name: 'Sun', rainfall_24h_mm: 60.0, rainfall_72h_mm: 240.0, probability: 51.0, threshold_crossed: true, risk_level: 'MODERATE', peak_water_depth_m: 0.4, status_summary: 'Rainfall easing; creek level receding during low tide window' },
-    { id: 'w6', date: '2026-09-14', day_name: 'Mon', rainfall_24h_mm: 28.0, rainfall_72h_mm: 140.0, probability: 35.8, threshold_crossed: false, risk_level: 'LOW', peak_water_depth_m: 0.1, status_summary: 'Dry spell; desilting crews cleared 450 meters of drainage' },
-    { id: 'w7', date: '2026-09-15', day_name: 'Tue', rainfall_24h_mm: params?.rainfall24h ?? 85.0, rainfall_72h_mm: params?.rainfall72h ?? 190.0, probability: curProb, threshold_crossed: isThresholdCrossed, risk_level: curProb >= 70 ? 'CRITICAL' : (curProb >= 50 ? 'HIGH' : 'LOW'), peak_water_depth_m: curProb >= 70 ? 1.2 : 0.6, status_summary: isThresholdCrossed ? 'Active severe convective band; 50% safety threshold exceeded' : 'Normal rainfall within drainage absorption capacity' }
+    {
+      id: 'w1',
+      date: new Date(today.getTime() - 6 * 86400000).toISOString().split('T')[0],
+      day_name: 'Day -6',
+      rainfall_24h_mm: Math.max(5, Math.round(currentR24 * 0.35)),
+      rainfall_72h_mm: Math.max(15, Math.round(currentR72 * 0.45)),
+      probability: Math.max(5, Math.round(curProb * 0.45 * 10) / 10),
+      threshold_crossed: (curProb * 0.45) >= 50.0,
+      risk_level: (curProb * 0.45) >= 70 ? 'CRITICAL' : ((curProb * 0.45) >= 50 ? 'HIGH' : 'LOW'),
+      peak_water_depth_m: Math.max(0.1, Math.round((curProb * 0.45 / 100) * 1.5 * 10) / 10),
+      status_summary: `Intermittent showers in ${locName}; runoff nallas flowing normally`
+    },
+    {
+      id: 'w2',
+      date: new Date(today.getTime() - 5 * 86400000).toISOString().split('T')[0],
+      day_name: 'Day -5',
+      rainfall_24h_mm: Math.max(10, Math.round(currentR24 * 0.6)),
+      rainfall_72h_mm: Math.max(25, Math.round(currentR72 * 0.65)),
+      probability: Math.max(8, Math.round(curProb * 0.65 * 10) / 10),
+      threshold_crossed: (curProb * 0.65) >= 50.0,
+      risk_level: (curProb * 0.65) >= 70 ? 'CRITICAL' : ((curProb * 0.65) >= 50 ? 'HIGH' : 'LOW'),
+      peak_water_depth_m: Math.max(0.2, Math.round((curProb * 0.65 / 100) * 1.5 * 10) / 10),
+      status_summary: `Soil saturation accumulating in ${locName}; minor curb-height pooling`
+    },
+    {
+      id: 'w3',
+      date: new Date(today.getTime() - 4 * 86400000).toISOString().split('T')[0],
+      day_name: 'Day -4',
+      rainfall_24h_mm: Math.max(15, Math.round(currentR24 * 1.25)),
+      rainfall_72h_mm: Math.max(40, Math.round(currentR72 * 1.15)),
+      probability: Math.min(99.4, Math.round(curProb * 1.15 * 10) / 10),
+      threshold_crossed: (curProb * 1.15) >= 50.0,
+      risk_level: (curProb * 1.15) >= 70 ? 'CRITICAL' : ((curProb * 1.15) >= 50 ? 'HIGH' : 'LOW'),
+      peak_water_depth_m: Math.max(0.4, Math.round((Math.min(100, curProb * 1.15) / 100) * 1.6 * 10) / 10),
+      status_summary: `Peak storm intensity across ${locName}; culverts surcharged; pumps active`
+    },
+    {
+      id: 'w4',
+      date: new Date(today.getTime() - 3 * 86400000).toISOString().split('T')[0],
+      day_name: 'Day -3',
+      rainfall_24h_mm: Math.max(12, Math.round(currentR24 * 0.95)),
+      rainfall_72h_mm: Math.max(35, Math.round(currentR72 * 1.05)),
+      probability: Math.min(99.4, Math.round(curProb * 0.95 * 10) / 10),
+      threshold_crossed: (curProb * 0.95) >= 50.0,
+      risk_level: (curProb * 0.95) >= 70 ? 'CRITICAL' : ((curProb * 0.95) >= 50 ? 'HIGH' : 'LOW'),
+      peak_water_depth_m: Math.max(0.3, Math.round((Math.min(100, curProb * 0.95) / 100) * 1.4 * 10) / 10),
+      status_summary: `Heavy runoff on arterial corridors in ${locName}; traffic slowed`
+    },
+    {
+      id: 'w5',
+      date: new Date(today.getTime() - 2 * 86400000).toISOString().split('T')[0],
+      day_name: 'Day -2',
+      rainfall_24h_mm: Math.max(8, Math.round(currentR24 * 0.55)),
+      rainfall_72h_mm: Math.max(20, Math.round(currentR72 * 0.8)),
+      probability: Math.max(6, Math.round(curProb * 0.75 * 10) / 10),
+      threshold_crossed: (curProb * 0.75) >= 50.0,
+      risk_level: (curProb * 0.75) >= 70 ? 'CRITICAL' : ((curProb * 0.75) >= 50 ? 'HIGH' : 'LOW'),
+      peak_water_depth_m: Math.max(0.2, Math.round((Math.min(100, curProb * 0.75) / 100) * 1.1 * 10) / 10),
+      status_summary: `Rainfall easing; drainage channels in ${locName} restoring normal flow`
+    },
+    {
+      id: 'w6',
+      date: new Date(today.getTime() - 1 * 86400000).toISOString().split('T')[0],
+      day_name: 'Yesterday',
+      rainfall_24h_mm: Math.max(4, Math.round(currentR24 * 0.3)),
+      rainfall_72h_mm: Math.max(12, Math.round(currentR72 * 0.5)),
+      probability: Math.max(4, Math.round(curProb * 0.5 * 10) / 10),
+      threshold_crossed: (curProb * 0.5) >= 50.0,
+      risk_level: (curProb * 0.5) >= 70 ? 'CRITICAL' : ((curProb * 0.5) >= 50 ? 'HIGH' : 'LOW'),
+      peak_water_depth_m: Math.max(0.1, Math.round((curProb * 0.5 / 100) * 0.8 * 10) / 10),
+      status_summary: `Gradual recovery in ${locName}; gravity drainage cleared low-lying streets`
+    },
+    {
+      id: 'w7',
+      date: today.toISOString().split('T')[0],
+      day_name: 'Today',
+      rainfall_24h_mm: currentR24,
+      rainfall_72h_mm: currentR72,
+      probability: curProb,
+      threshold_crossed: isThresholdCrossed,
+      risk_level: curProb >= 70 ? 'CRITICAL' : (curProb >= 50 ? 'HIGH' : (curProb >= 30 ? 'MODERATE' : 'LOW')),
+      peak_water_depth_m: curProb >= 70 ? 1.2 : (curProb >= 50 ? 0.6 : (curProb >= 30 ? 0.3 : 0.05)),
+      status_summary: isThresholdCrossed
+        ? `Active severe convective threat in ${locName}; 50% safety threshold exceeded`
+        : `Normal conditions in ${locName}; rainfall safely within drainage capacity`
+    }
   ];
 
-  // Fallback rainfall sensitivity scenarios
+  // Dynamic sensitivity scenarios based on active location telemetry
   const incScenarios = rainfallImpact?.increase_scenarios || [
-    { rainfall_increase_mm: 10, simulated_rainfall_24h: (params?.rainfall24h ?? 85) + 10, simulated_probability: Math.min(99.4, Math.round((curProb + 12.4) * 10) / 10), risk_increase_delta: 12.4, water_depth_increase_m: 0.18, threat_classification: "Moderate Ingress", consequence_summary: "Curb-height pooling (10-25cm). Slow transit on arterial lanes; storm drains running at 85% capacity.", threshold_breached: true },
-    { rainfall_increase_mm: 25, simulated_rainfall_24h: (params?.rainfall24h ?? 85) + 25, simulated_probability: Math.min(99.4, Math.round((curProb + 26.8) * 10) / 10), risk_increase_delta: 26.8, water_depth_increase_m: 0.42, threat_classification: "Severe Waterlogging", consequence_summary: "Street water depth reaches 35-50cm. Vehicle stalling in underpasses, ground floor shop ingress.", threshold_breached: true },
-    { rainfall_increase_mm: 50, simulated_rainfall_24h: (params?.rainfall24h ?? 85) + 50, simulated_probability: Math.min(99.4, Math.round((curProb + 44.1) * 10) / 10), risk_increase_delta: 44.1, water_depth_increase_m: 0.85, threat_classification: "Critical Flash Inundation", consequence_summary: "Major culvert overflow (0.7m - 1.1m depth). Road links severed, power supply shut down for safety.", threshold_breached: true },
-    { rainfall_increase_mm: 100, simulated_rainfall_24h: (params?.rainfall24h ?? 85) + 100, simulated_probability: 99.4, risk_increase_delta: 58.5, water_depth_increase_m: 1.60, threat_classification: "Catastrophic Cloudburst Surge", consequence_summary: "Extreme deluge exceeding 1.5m depth. Residential ground floors inundated, mandatory boat evacuations.", threshold_breached: true }
+    {
+      rainfall_increase_mm: 10,
+      simulated_rainfall_24h: currentR24 + 10,
+      simulated_probability: Math.min(99.4, Math.round((curProb + 12.4) * 10) / 10),
+      risk_increase_delta: 12.4,
+      water_depth_increase_m: 0.18,
+      threat_classification: "Moderate Ingress",
+      consequence_summary: `Curb-height pooling in ${locName} (10-25cm). Storm drains running at 85% capacity.`,
+      threshold_breached: (curProb + 12.4) >= 50.0
+    },
+    {
+      rainfall_increase_mm: 25,
+      simulated_rainfall_24h: currentR24 + 25,
+      simulated_probability: Math.min(99.4, Math.round((curProb + 26.8) * 10) / 10),
+      risk_increase_delta: 26.8,
+      water_depth_increase_m: 0.42,
+      threat_classification: "Severe Waterlogging",
+      consequence_summary: `Street water depth in ${locName} reaches 35-50cm. Vehicle stalling in underpasses.`,
+      threshold_breached: (curProb + 26.8) >= 50.0
+    },
+    {
+      rainfall_increase_mm: 50,
+      simulated_rainfall_24h: currentR24 + 50,
+      simulated_probability: Math.min(99.4, Math.round((curProb + 44.1) * 10) / 10),
+      risk_increase_delta: 44.1,
+      water_depth_increase_m: 0.85,
+      threat_classification: "Critical Flash Inundation",
+      consequence_summary: `Major culvert overflow in ${locName} (0.7m - 1.1m depth). Road corridors severed.`,
+      threshold_breached: true
+    },
+    {
+      rainfall_increase_mm: 100,
+      simulated_rainfall_24h: currentR24 + 100,
+      simulated_probability: 99.4,
+      risk_increase_delta: Math.round((99.4 - curProb) * 10) / 10,
+      water_depth_increase_m: 1.60,
+      threat_classification: "Catastrophic Cloudburst Surge",
+      consequence_summary: `Extreme deluge exceeding 1.5m depth in ${locName}. Residential ground floors inundated.`,
+      threshold_breached: true
+    }
   ];
 
   const decScenarios = rainfallImpact?.decrease_scenarios || [
-    { scenario_label: "-10 mm (Rain Eases)", rainfall_reduction_mm: 10.0, simulated_probability: Math.max(2.5, Math.round((curProb - 14.2) * 10) / 10), risk_reduction_delta: 14.2, drainage_recovery_behavior: "Gravity drains clear surface gutters; runoff velocity drops by 45%. Water begins receding from road shoulders.", safety_margin_rating: "MODERATE STABILITY — Water levels stabilize with no new overland flow.", estimated_recession_hours: 2.2, below_alert_threshold: (curProb - 14.2) < 50.0 },
-    { scenario_label: "-25 mm (Significant Letup)", rainfall_reduction_mm: 25.0, simulated_probability: Math.max(2.5, Math.round((curProb - 29.6) * 10) / 10), risk_reduction_delta: 29.6, drainage_recovery_behavior: "Primary stormwater channels re-establish free discharge. Street ponding clears from all major carriage roads within 2 hours.", safety_margin_rating: "SUBSTANTIAL SAFETY — Risk falls below alert threshold into manageable zone.", estimated_recession_hours: 1.4, below_alert_threshold: true },
-    { scenario_label: "Rain Ceases Completely (0 mm Dry Spell)", rainfall_reduction_mm: params?.rainfall24h ?? 85.0, simulated_probability: 4.8, risk_reduction_delta: Math.round((curProb - 4.8) * 10) / 10, drainage_recovery_behavior: "Ground saturation steadily diminishes. Natural infiltration and municipal pumps restore all low spots within 3-6 hours.", safety_margin_rating: "OPTIMAL SAFETY ZONE — Flood hazard neutralized; full transit operations safe to resume.", estimated_recession_hours: 0.8, below_alert_threshold: true }
+    {
+      scenario_label: "-10 mm (Rain Eases)",
+      rainfall_reduction_mm: 10.0,
+      simulated_probability: Math.max(2.5, Math.round((curProb - 14.2) * 10) / 10),
+      risk_reduction_delta: 14.2,
+      drainage_recovery_behavior: `Gravity drains in ${locName} clear surface gutters; runoff velocity drops by 45%.`,
+      safety_margin_rating: "MODERATE STABILITY — Water levels stabilize with no new overland flow.",
+      estimated_recession_hours: 2.2,
+      below_alert_threshold: (curProb - 14.2) < 50.0
+    },
+    {
+      scenario_label: "-25 mm (Significant Letup)",
+      rainfall_reduction_mm: 25.0,
+      simulated_probability: Math.max(2.5, Math.round((curProb - 29.6) * 10) / 10),
+      risk_reduction_delta: 29.6,
+      drainage_recovery_behavior: `Primary stormwater channels in ${locName} clear road ponding within 2 hours.`,
+      safety_margin_rating: "SUBSTANTIAL SAFETY — Risk falls below alert threshold into manageable zone.",
+      estimated_recession_hours: 1.4,
+      below_alert_threshold: true
+    },
+    {
+      scenario_label: "Rain Ceases Completely (0 mm Dry Spell)",
+      rainfall_reduction_mm: currentR24,
+      simulated_probability: 4.8,
+      risk_reduction_delta: Math.round((curProb - 4.8) * 10) / 10,
+      drainage_recovery_behavior: `Ground saturation steadily diminishes in ${locName}. Municipal pumps restore low spots within 3-6 hours.`,
+      safety_margin_rating: "OPTIMAL SAFETY ZONE — Flood hazard neutralized; full transit operations safe.",
+      estimated_recession_hours: 0.8,
+      below_alert_threshold: true
+    }
   ];
-
-  const safeBuffer = rainfallImpact?.safe_absorption_buffer_mm ?? (curProb < 50.0 ? Math.round((50.0 - curProb) * 1.8) : 0);
-  const drainHours = rainfallImpact?.estimated_drain_time_hours ?? 3.5;
-  const soilSat = rainfallImpact?.soil_saturation_pct ?? 78.5;
 
   return (
     <div className="alerts-reports-page-container" style={{ padding: isEmbeddedInModal ? '0' : '24px 32px', color: '#1e293b' }}>
       {/* TOP HEADER & BREADCRUMB */}
       {!isEmbeddedInModal && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <button
@@ -132,20 +464,284 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
         </div>
       )}
 
-      {/* TOP CONTEXT BAR */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 18px', marginBottom: '18px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '1.3rem' }}>📍</span>
-          <div>
-            <strong style={{ fontSize: '0.96rem', color: '#0f172a' }}>{locName} {locCountry ? `(${locCountry})` : ''}</strong>
-            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
-              Active Telemetry: 24h Rain: <strong>{params?.rainfall24h ?? 85} mm</strong> | 72h Rain: <strong>{params?.rainfall72h ?? 190} mm</strong> | Elevation: <strong>{params?.elevation ?? 15} m</strong>
+      {/* STATUS NOTIFICATION BANNER */}
+      {statusNotification && (
+        <div style={{
+          background: statusNotification.startsWith('✓') ? '#f0fdf4' : (statusNotification.startsWith('⚡') ? '#eff6ff' : '#fef2f2'),
+          border: `1px solid ${statusNotification.startsWith('✓') ? '#86efac' : (statusNotification.startsWith('⚡') ? '#93c5fd' : '#fca5a5')}`,
+          color: statusNotification.startsWith('✓') ? '#166534' : (statusNotification.startsWith('⚡') ? '#1e40af' : '#991b1b'),
+          borderRadius: '8px',
+          padding: '10px 16px',
+          fontSize: '0.86rem',
+          fontWeight: 600,
+          marginBottom: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+        }}>
+          <span>{statusNotification}</span>
+        </div>
+      )}
+
+      {/* TOP CONTEXT BAR WITH LOCATION SWITCHER */}
+      <div style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '10px',
+        padding: '16px 20px',
+        marginBottom: '18px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px'
+      }}>
+        {/* Main Telemetry Header Row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '1.4rem' }}>📍</span>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: '1.02rem', color: '#0f172a' }}>{locName} {locCountry ? `(${locCountry})` : ''}</strong>
+                <span style={{
+                  fontSize: '0.72rem',
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  fontWeight: 600
+                }}>
+                  {locLat.toFixed(3)}° N, {locLng.toFixed(3)}° E
+                </span>
+                {isFetchingLocation && (
+                  <span style={{ fontSize: '0.72rem', background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                    ⚡ Fetching Live Telemetry...
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+                Active Telemetry: 24h Rain: <strong>{currentR24} mm</strong> | 72h Rain: <strong>{currentR72} mm</strong> | Elevation: <strong>{currentElev} m</strong> | Temp: <strong>{activeTelemetry?.temperature ?? 28}°C</strong>
+              </div>
             </div>
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.74rem', color: '#64748b' }}>Current ML Risk:</div>
+              <strong style={{ color: isThresholdCrossed ? '#dc2626' : '#16a34a', fontSize: '1.15rem', fontWeight: 900 }}>
+                {curProb}%
+              </strong>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowSearchBox(prev => !prev);
+                setTimeout(() => searchInputRef.current?.focus(), 100);
+              }}
+              style={{
+                background: showSearchBox ? '#0284c7' : '#f8fafc',
+                color: showSearchBox ? '#ffffff' : '#0284c7',
+                border: '1.5px solid #0284c7',
+                borderRadius: '8px',
+                padding: '7px 14px',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+              title="Click to search and change location to any global city or coordinates"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <span>{showSearchBox ? 'Close Location Bar' : 'Change Location'}</span>
+            </button>
+          </div>
         </div>
-        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-          Current ML Inundation Probability: <strong style={{ color: isThresholdCrossed ? '#dc2626' : '#16a34a', fontSize: '1.05rem' }}>{curProb}%</strong>
-        </div>
+
+        {/* EXPANDABLE LOCATION SEARCH & PRESETS PANEL */}
+        {showSearchBox && (
+          <div style={{
+            background: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            borderRadius: '8px',
+            padding: '14px 16px',
+            marginTop: '4px',
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                🌍 Search Location or Enter Global Coordinates:
+              </span>
+              <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                Powered by Open-Meteo & Copernicus DEM Live APIs
+              </span>
+            </div>
+
+            {/* Search Input Field */}
+            <div style={{ position: 'relative', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', border: '1.5px solid #0284c7', borderRadius: '6px', padding: '6px 12px' }}>
+                <span style={{ fontSize: '1rem', marginRight: '8px', color: '#64748b' }}>🔍</span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder="Type city name, district, or coordinates (e.g. Mumbai, Chennai, London, 19.28, 72.85)..."
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: '0.88rem',
+                    color: '#0f172a',
+                    fontWeight: 500
+                  }}
+                />
+                {isSearching && (
+                  <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 600 }}>Searching...</span>
+                )}
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setShowDropdown(false);
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1rem', padding: '0 4px' }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Autocomplete Dropdown */}
+              {showDropdown && searchResults.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '105%',
+                  left: 0,
+                  right: 0,
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                  zIndex: 50,
+                  maxHeight: '220px',
+                  overflowY: 'auto'
+                }}>
+                  {searchResults.map((res, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleApplyLocation(res)}
+                      style={{
+                        padding: '10px 14px',
+                        borderBottom: idx < searchResults.length - 1 ? '1px solid #f1f5f9' : 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'background 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '0.86rem', color: '#0f172a' }}>{res.name}</strong>
+                        <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                          {res.admin ? `${res.admin}, ` : ''}{res.country || ''}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                        {res.lat.toFixed(2)}°, {res.lng.toFixed(2)}°
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick 1-Click Preset Location Chips */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', marginRight: '4px' }}>
+                Quick Presets:
+              </span>
+              {PRESET_LOCATIONS.map((preset, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleApplyLocation(preset)}
+                  style={{
+                    background: locName.toLowerCase() === preset.name.toLowerCase() ? '#0284c7' : '#ffffff',
+                    color: locName.toLowerCase() === preset.name.toLowerCase() ? '#ffffff' : '#334155',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '14px',
+                    padding: '3px 10px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (locName.toLowerCase() !== preset.name.toLowerCase()) {
+                      e.currentTarget.style.background = '#e2e8f0';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (locName.toLowerCase() !== preset.name.toLowerCase()) {
+                      e.currentTarget.style.background = '#ffffff';
+                    }
+                  }}
+                >
+                  <span>📍</span>
+                  <span>{preset.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Direct Lat/Long Input Form */}
+            <form onSubmit={handleCustomCoordinatesSubmit} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#64748b' }}>Or enter coordinates directly:</span>
+              <input
+                type="number"
+                step="0.0001"
+                placeholder="Latitude (e.g. 19.295)"
+                value={customLat}
+                onChange={(e) => setCustomLat(e.target.value)}
+                style={{ width: '130px', padding: '4px 8px', fontSize: '0.78rem', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+              />
+              <input
+                type="number"
+                step="0.0001"
+                placeholder="Longitude (e.g. 72.854)"
+                value={customLng}
+                onChange={(e) => setCustomLng(e.target.value)}
+                style={{ width: '130px', padding: '4px 8px', fontSize: '0.78rem', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+              />
+              <button
+                type="submit"
+                style={{
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Go →
+              </button>
+            </form>
+          </div>
+        )}
       </div>
 
       {/* PRIMARY SUB-TABS NAVIGATION */}
@@ -265,8 +861,8 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
                 </h3>
                 <p style={{ fontSize: '0.9rem', color: isThresholdCrossed ? '#7f1d1d' : '#14532d', margin: 0, lineHeight: 1.5, maxWidth: '700px' }}>
                   {isThresholdCrossed
-                    ? `The backend AI scoring engine has detected a threshold breach at ${curProb}% (+${deltaThreshold}% above the critical 50.0% cutoff). Overland storm runoff is overwhelming local gravity drains. Low-lying arterial roads and basements face immediate waterlogging.`
-                    : `The backend AI scoring engine confirms current risk is ${curProb}%, maintaining an operational safety buffer of ${Math.abs(deltaThreshold)}% below the 50% danger line. Drains and terrain are absorbing all surface precipitation.`}
+                    ? `The backend AI scoring engine has detected a threshold breach at ${curProb}% (+${deltaThreshold}% above the critical 50.0% cutoff for ${locName}). Overland storm runoff is overwhelming local drainage networks. Low-lying arterial roads and basements face immediate inundation.`
+                    : `The backend AI scoring engine confirms current risk for ${locName} is ${curProb}%, maintaining an operational safety buffer of ${Math.abs(deltaThreshold)}% below the 50% danger line. Drains and terrain are absorbing all surface precipitation.`}
                 </p>
               </div>
 
@@ -331,7 +927,7 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
               <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0284c7', marginTop: '2px' }}>
                 {isThresholdCrossed ? (curProb >= 75 ? '0.8 - 1.5 m' : '0.3 - 0.7 m') : '< 0.15 m'}
               </div>
-              <div style={{ fontSize: '0.72rem', color: '#64748b' }}>At chronic bottleneck junctions</div>
+              <div style={{ fontSize: '0.72rem', color: '#64748b' }}>At chronic low elevation spots</div>
             </div>
 
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', padding: '16px', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
@@ -450,10 +1046,10 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
                         {r.threshold_crossed ? 'BREACHED' : 'SAFE'}
                       </span>
                     </td>
-                    <td style={{ padding: '12px', fontWeight: 600, color: '#475569' }}>
+                    <td style={{ padding: '12px', color: '#475569', fontWeight: 600 }}>
                       {r.peak_water_depth_m} m
                     </td>
-                    <td style={{ padding: '12px', fontSize: '0.8rem', color: '#475569' }}>
+                    <td style={{ padding: '12px', color: '#475569', fontSize: '0.82rem' }}>
                       {r.status_summary}
                     </td>
                   </tr>
@@ -464,70 +1060,36 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
         </div>
       )}
 
-      {/* TAB 3: 📈 RAINFALL SENSITIVITY & IMPACT */}
+      {/* TAB 3: 📈 RAINFALL SENSITIVITY & IMPACT CURVES */}
       {subTab === 'sensitivity' && (
         <div>
           <div style={{ marginBottom: '16px' }}>
             <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-              Hydrological Rainfall Sensitivity & Risk Elasticity Matrix
+              Dynamic Rainfall Sensitivity & Inundation Elasticity for {locName}
             </h3>
-            <p style={{ fontSize: '0.86rem', color: '#475569', margin: '4px 0 0 0' }}>
-              Simulating exact quantitative risk progression for <strong>{locName}</strong>: how much risk increases if rainfall surges, and what happens if rainfall decreases or ceases completely.
-            </p>
-          </div>
-
-          {/* 3 QUANTITATIVE SAFETY KPI METRICS */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '18px' }}>
-            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', padding: '14px 18px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#15803d', fontWeight: 700, textTransform: 'uppercase' }}>Safe Absorption Buffer</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#166534', marginTop: '2px' }}>
-                {safeBuffer > 0 ? `+${safeBuffer} mm` : '0 mm (Deficit Active)'}
-              </div>
-              <div style={{ fontSize: '0.74rem', color: '#166534' }}>Rainfall tolerated before 50% threshold breach</div>
-            </div>
-
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '14px 18px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#1d4ed8', fontWeight: 700, textTransform: 'uppercase' }}>Full Recession Duration</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e40af', marginTop: '2px' }}>
-                ~{drainHours} Hours
-              </div>
-              <div style={{ fontSize: '0.74rem', color: '#1e40af' }}>Time for ponding to clear if rain stops now</div>
-            </div>
-
-            <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', padding: '14px 18px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#6b21a8', fontWeight: 700, textTransform: 'uppercase' }}>Soil Saturation Index</div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#7e22ce', marginTop: '2px' }}>
-                {soilSat}% Saturation
-              </div>
-              <div style={{ fontSize: '0.74rem', color: '#7e22ce' }}>Near hydraulic percolation limit</div>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+              Simulates how flood risk probability and waterlogging depth in {locName} respond to incremental increases (+10mm to +100mm) or decreases in rainfall.
             </div>
           </div>
 
-          {/* TWO-COLUMN SENSITIVITY BREAKDOWN */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            {/* LEFT: RAINFALL INCREASE */}
-            <div style={{ background: '#fff', border: '1px solid #fecaca', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          {/* SENSITIVITY TABLE */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            {/* INCREASING RAIN SCENARIOS */}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <span style={{ fontSize: '1.3rem' }}>📈</span>
-                <div>
-                  <strong style={{ color: '#b91c1c', fontSize: '0.96rem' }}>IF RAINFALL INCREASES</strong>
-                  <div style={{ fontSize: '0.74rem', color: '#7f1d1d' }}>How risk grows as storm volume escalates</div>
-                </div>
+                <span style={{ fontSize: '1.2rem' }}>🌧️</span>
+                <strong style={{ fontSize: '0.92rem', color: '#dc2626' }}>Rainfall Acceleration Scenarios (+mm)</strong>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {incScenarios.map((s, idx) => (
-                  <div key={idx} style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', padding: '12px' }}>
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 800, color: '#991b1b', fontSize: '0.88rem' }}>+{s.rainfall_increase_mm} mm Additional Rain</span>
-                      <span style={{ background: '#ef4444', color: '#fff', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>
-                        Risk: {s.simulated_probability}% (+{s.risk_increase_delta}%)
+                      <strong style={{ color: '#0f172a', fontSize: '0.88rem' }}>+{s.rainfall_increase_mm} mm (Total: {s.simulated_rainfall_24h}mm)</strong>
+                      <span style={{ fontSize: '0.86rem', fontWeight: 800, color: s.simulated_probability >= 70 ? '#dc2626' : '#d97706' }}>
+                        {s.simulated_probability}% (+{s.risk_increase_delta}%)
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.76rem', color: '#7f1d1d', fontWeight: 600, marginBottom: '4px' }}>
-                      Water Depth: +{s.water_depth_increase_m}m | Threat: {s.threat_classification}
-                    </div>
-                    <div style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.4 }}>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.4 }}>
                       {s.consequence_summary}
                     </div>
                   </div>
@@ -535,29 +1097,22 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
               </div>
             </div>
 
-            {/* RIGHT: RAINFALL DECREASE & DRY SPELL */}
-            <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            {/* DECREASING RAIN SCENARIOS */}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <span style={{ fontSize: '1.3rem' }}>📉</span>
-                <div>
-                  <strong style={{ color: '#15803d', fontSize: '0.96rem' }}>IF RAINFALL GOES DOWN / CEASES</strong>
-                  <div style={{ fontSize: '0.74rem', color: '#14532d' }}>How risk drops and safe drainage restores</div>
-                </div>
+                <span style={{ fontSize: '1.2rem' }}>⛅</span>
+                <strong style={{ fontSize: '0.92rem', color: '#16a34a' }}>Rainfall Abatement & Recession Scenarios (-mm)</strong>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {decScenarios.map((s, idx) => (
-                  <div key={idx} style={{ background: '#f0fdf4', border: '1px solid #dcfce7', borderRadius: '8px', padding: '12px' }}>
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 800, color: '#166534', fontSize: '0.88rem' }}>{s.scenario_label}</span>
-                      <span style={{ background: '#16a34a', color: '#fff', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>
-                        Risk: {s.simulated_probability}% (-{s.risk_reduction_delta}%)
+                      <strong style={{ color: '#0f172a', fontSize: '0.88rem' }}>{s.scenario_label}</strong>
+                      <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#16a34a' }}>
+                        {s.simulated_probability}% (-{s.risk_reduction_delta}%)
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.76rem', color: '#15803d', fontWeight: 600, marginBottom: '4px' }}>
-                      Recession Time: ~{s.estimated_recession_hours}h | Status: {s.below_alert_threshold ? '✅ Below Threshold' : '⚠️ Alert Persists'}
-                    </div>
-                    <div style={{ fontSize: '0.76rem', color: '#475569', lineHeight: 1.4 }}>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.4 }}>
                       {s.drainage_recovery_behavior}
                     </div>
                   </div>
@@ -568,33 +1123,33 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
         </div>
       )}
 
-      {/* TAB 4: 🛡️ SAFETY PRECAUTIONS & PROTOCOLS */}
+      {/* TAB 4: 🛡️ SAFETY PRECAUTIONS & DIRECTIVES */}
       {subTab === 'precautions' && (
         <div>
           <div style={{ marginBottom: '16px' }}>
             <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-              Actionable Safety Precautions & Civil Defense Protocols
+              Actionable Safety Directives & Disaster Protocols for {locName}
             </h3>
-            <p style={{ fontSize: '0.86rem', color: '#475569', margin: '4px 0 0 0' }}>
-              Tailored emergency response measures based on current <strong>{curProb}% flood probability</strong> for <strong>{locName}</strong>.
-            </p>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+              Specific civic guidelines and emergency preparations tailored to the current {curProb}% inundation risk level.
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-            {/* CITIZENS & FAMILIES */}
+            {/* CITIZENS & HOUSEHOLDS */}
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <span style={{ fontSize: '1.3rem' }}>👨‍👩‍👧</span>
-                <strong style={{ fontSize: '0.94rem', color: '#0f172a' }}>Citizens & Households</strong>
+                <span style={{ fontSize: '1.3rem' }}>🏠</span>
+                <strong style={{ fontSize: '0.94rem', color: '#0f172a' }}>Households & Residents</strong>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#0f172a' }}>Relocate Vehicles</strong>
+                    <strong style={{ fontSize: '0.84rem', color: '#0f172a' }}>Elevate Critical Valuables</strong>
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>CRITICAL</span>
                   </div>
                   <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-                    Move cars and scooters to elevated podiums or upper ramps. Water over the wheel hub causes irreparable ECU and engine hydro-lock.
+                    Move electrical equipment, vital paper documents, and medication to upper floors or tables above 1.0m height.
                   </p>
                 </div>
 
@@ -643,7 +1198,7 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#2563eb', background: '#dbeafe', padding: '2px 6px', borderRadius: '4px' }}>ADVISORY</span>
                   </div>
                   <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-                    Use the 3D World Globe / Risk Map before driving to identify which ward drainage channels are surcharging.
+                    Use the 3D World Globe / Risk Map before driving to identify which local drainage channels are surcharging.
                   </p>
                 </div>
 
@@ -663,7 +1218,7 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <span style={{ fontSize: '1.3rem' }}>🚒</span>
-                <strong style={{ fontSize: '0.94rem', color: '#0f172a' }}>First Responders (NDRF/MBMC)</strong>
+                <strong style={{ fontSize: '0.94rem', color: '#0f172a' }}>First Responders & Municipal Teams</strong>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
@@ -672,7 +1227,7 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>URGENT</span>
                   </div>
                   <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-                    Position diesel-powered 1000 GPM suction pumps at known chronic choking culverts and railway subway sumps.
+                    Position diesel-powered 1000 GPM suction pumps at known chronic choking culverts and railway subway sumps in {locName}.
                   </p>
                 </div>
 
@@ -682,7 +1237,7 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', padding: '2px 6px', borderRadius: '4px' }}>STRATEGIC</span>
                   </div>
                   <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-                    Open creek discharge flap gates precisely during low tide to evacuate inland ponding by gravity before next tidal surge.
+                    Open tidal discharge flap gates precisely during low tide to evacuate inland ponding by gravity before next tidal surge.
                   </p>
                 </div>
 
@@ -692,7 +1247,7 @@ export default function AlertsReportsView({ currentLocation, params, prediction,
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>LIFE SAFETY</span>
                   </div>
                   <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
-                    Remotely de-energize roadside DP boxes and low-height transformers in inundated sectors to avoid civic electrocution.
+                    Remotely de-energize roadside DP boxes and low-height transformers in inundated sectors of {locName} to avoid civic electrocution.
                   </p>
                 </div>
               </div>

@@ -3,7 +3,7 @@ import HistoricalDataView from './HistoricalDataView';
 import AlertsReportsView from './AlertsReportsView';
 import AboutProjectView from './AboutProjectView';
 
-export default function Modal({ isOpen, type, onClose, currentLocation, params, prediction }) {
+export default function Modal({ isOpen, type, onClose, currentLocation, params, prediction, onLocationChange }) {
   if (!isOpen) return null;
 
   const rawLoc = currentLocation?.name || (typeof currentLocation === 'string' ? currentLocation : 'Mira Bhayandar');
@@ -21,7 +21,16 @@ export default function Modal({ isOpen, type, onClose, currentLocation, params, 
     content = <HistoricalDataView currentLocation={currentLocation} onBackToDashboard={onClose} isEmbeddedInModal={true} />;
   } else if (type === 'alerts' || type === 'reports') {
     title = `🚨 DisasterRadar.ai — Alerts & 7-Day Rainfall Reports (${locName})`;
-    content = <AlertsReportsView currentLocation={currentLocation} params={params} prediction={prediction} onBackToDashboard={onClose} isEmbeddedInModal={true} />;
+    content = (
+      <AlertsReportsView
+        currentLocation={currentLocation}
+        params={params}
+        prediction={prediction}
+        onBackToDashboard={onClose}
+        isEmbeddedInModal={true}
+        onLocationChange={onLocationChange}
+      />
+    );
   }
 
   return (

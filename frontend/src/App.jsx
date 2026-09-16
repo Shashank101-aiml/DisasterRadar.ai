@@ -13,6 +13,8 @@ import GlobeRiskMap from './components/GlobeRiskMap';
 import HistoricalDataView from './components/HistoricalDataView';
 import AlertsReportsView from './components/AlertsReportsView';
 import AboutProjectView from './components/AboutProjectView';
+import ModelPerformanceView from './components/ModelPerformanceView';
+import PredictRiskView from './components/PredictRiskView';
 
 import {
   predictFloodRisk,
@@ -161,20 +163,9 @@ export default function App() {
   // Tab Navigation Handling
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
-    if (tabId === 'dashboard') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (tabId === 'predict') {
-      setActiveTab('dashboard');
-      setTimeout(() => {
-        document.getElementById('inputParamsCard')?.scrollIntoView({ behavior: 'smooth' });
-      }, 50);
-    } else if (tabId === 'performance') {
-      setActiveTab('dashboard');
-      setTimeout(() => {
-        document.getElementById('modelPerfCard')?.scrollIntoView({ behavior: 'smooth' });
-      }, 50);
-    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
 
   const handleGlobePredict = (locData) => {
     setActiveLocation({
@@ -236,6 +227,26 @@ export default function App() {
             onLocationChange={setActiveLocation}
             onOpenHistoryModal={() => setActiveTab('historical')}
           />
+        ) : activeTab === 'predict' ? (
+          /* FULL-PAGE PRODUCTION PREDICT RISK STUDIO */
+          <PredictRiskView
+            currentLocation={activeLocation}
+            params={params}
+            prediction={prediction}
+            onBackToDashboard={() => setActiveTab('dashboard')}
+            onLocationChange={(newLoc, newParams, newPred) => {
+              if (newLoc) setActiveLocation(newLoc);
+              if (newParams) setParams(newParams);
+              if (newPred) setPrediction(newPred);
+            }}
+          />
+        ) : activeTab === 'performance' ? (
+          /* FULL-PAGE INTERACTIVE MODEL PERFORMANCE & EVALUATION STUDIO */
+          <ModelPerformanceView
+            metrics={modelMetrics}
+            onBackToDashboard={() => setActiveTab('dashboard')}
+            onOpenPredict={() => setActiveTab('predict')}
+          />
         ) : activeTab === 'historical' ? (
           /* FULL-PAGE HISTORICAL DATA & DISASTER REGISTRY VIEW */
           <HistoricalDataView
@@ -249,6 +260,11 @@ export default function App() {
             params={params}
             prediction={prediction}
             onBackToDashboard={() => setActiveTab('dashboard')}
+            onLocationChange={(newLoc, newParams, newPred) => {
+              if (newLoc) setActiveLocation(newLoc);
+              if (newParams) setParams(newParams);
+              if (newPred) setPrediction(newPred);
+            }}
           />
         ) : activeTab === 'about' ? (
           /* FULL-PAGE ABOUT PROJECT & ARCHITECTURE GUIDE VIEW */
@@ -278,6 +294,7 @@ export default function App() {
                   onChange={handleParamChange}
                   onPredict={handlePredict}
                   isLoading={isLoading}
+                  onOpenPredictStudio={() => setActiveTab('predict')}
                 />
 
                 <RiskFactors factors={prediction.riskFactors} />
@@ -292,9 +309,13 @@ export default function App() {
                 />
 
                 <div className="bottom-split-grid">
-                  <ModelPerformance metrics={modelMetrics} />
+                  <ModelPerformance
+                    metrics={modelMetrics}
+                    onOpenFullPerformance={() => setActiveTab('performance')}
+                  />
                   <RecentPredictions predictions={recentPredictions} />
                 </div>
+
               </div>
             </div>
 
@@ -312,6 +333,11 @@ export default function App() {
         currentLocation={activeLocation}
         params={params}
         prediction={prediction}
+        onLocationChange={(newLoc, newParams, newPred) => {
+          if (newLoc) setActiveLocation(newLoc);
+          if (newParams) setParams(newParams);
+          if (newPred) setPrediction(newPred);
+        }}
       />
 
     </div>

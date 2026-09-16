@@ -1,13 +1,36 @@
 import React from 'react';
 
-export default function InputParameters({ params, onChange, onPredict, isLoading }) {
+export default function InputParameters({ params, onChange, onPredict, isLoading, onOpenPredictStudio }) {
   const handleChange = (field, value) => {
     onChange(field, value);
   };
 
   return (
     <div className="card" id="inputParamsCard">
-      <div className="card-title">Input Parameters</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div className="card-title" style={{ margin: 0 }}>Input Parameters</div>
+        {onOpenPredictStudio && (
+          <button
+            onClick={onOpenPredictStudio}
+            style={{
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '6px',
+              color: '#15803d',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            Full Predict Studio →
+          </button>
+        )}
+      </div>
+
 
       <table className="params-table">
         <tbody>

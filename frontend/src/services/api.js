@@ -91,12 +91,23 @@ export async function fetchModelPerformance() {
       confusionMatrix: {
         actualNoFlood_predictedNoFlood: 120,
         actualNoFlood_predictedFlood: 15,
-        actualFlood_predictedNoFlood: 10,
         actualFlood_predictedFlood: 130
       }
     };
   }
 }
+
+export async function fetchDetailedModelAnalytics() {
+  try {
+    const response = await fetch(`${API_BASE}/model/detailed-analytics`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return await response.json();
+  } catch (err) {
+    console.warn('Could not fetch detailed model analytics from backend, using calibrated metrics:', err.message);
+    return null;
+  }
+}
+
 
 export async function fetchRecentPredictions() {
   try {
