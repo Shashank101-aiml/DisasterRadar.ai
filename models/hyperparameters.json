@@ -1,0 +1,21 @@
+{
+  "learning_rate": 0.047271475670325844,
+  "max_depth": 8,
+  "min_child_weight": 1,
+  "subsample": 0.8184487179004027,
+  "colsample_bytree": 0.8185802503602817,
+  "gamma": 0.2895336951768993,
+  "reg_alpha": 0.025309127288783848,
+  "reg_lambda": 1.2536821321247766,
+  "objective": "binary:logistic",
+  "eval_metric": [
+    "logloss",
+    "auc"
+  ],
+  "tree_method": "hist",
+  "n_estimators": 350,
+  "scale_pos_weight": 1.0,
+  "early_stopping_rounds": 30,
+  "random_state": 42,
+  "n_jobs": -1
+}

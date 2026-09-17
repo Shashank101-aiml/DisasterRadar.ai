@@ -1,0 +1,20 @@
+{
+  "features": [
+    "rainfall_24h",
+    "rainfall_72h",
+    "elevation",
+    "slope",
+    "twi",
+    "ndwi",
+    "ndvi",
+    "drainage_capacity",
+    "urbanization_index",
+    "infrastructure_decay",
+    "disaster_unpreparedness",
+    "precip_ratio",
+    "ponding_hazard",
+    "water_contrast",
+    "drainage_stress"
+  ],
+  "count": 15
+}

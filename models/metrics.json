@@ -1,0 +1,60 @@
+{
+  "model_name": "XGBoost Flood Risk Classifier (1:1 Balanced MODIS Dataset)",
+  "model_type": "xgboost.XGBClassifier",
+  "serialization_format": "native_json",
+  "model_file": "flood_model.json",
+  "accuracy": 0.9147,
+  "precision": 0.9044,
+  "recall": 0.9275,
+  "f1_score": 0.9158,
+  "roc_auc": 0.9676,
+  "pr_auc": 0.9602,
+  "brier_score": 0.0625,
+  "best_iteration": 348,
+  "total_boosting_trees": 349,
+  "confusion_matrix": [
+    [
+      5600,
+      609
+    ],
+    [
+      450,
+      5758
+    ]
+  ],
+  "feature_names": [
+    "rainfall_24h",
+    "rainfall_72h",
+    "elevation",
+    "slope",
+    "twi",
+    "ndwi",
+    "ndvi",
+    "drainage_capacity",
+    "urbanization_index",
+    "infrastructure_decay",
+    "disaster_unpreparedness",
+    "precip_ratio",
+    "ponding_hazard",
+    "water_contrast",
+    "drainage_stress"
+  ],
+  "feature_shap_importance": {
+    "elevation": 1.3698,
+    "ndwi": 0.9769,
+    "ndvi": 0.7933,
+    "ponding_hazard": 0.3944,
+    "precip_ratio": 0.2682,
+    "rainfall_72h": 0.2664,
+    "rainfall_24h": 0.2302,
+    "water_contrast": 0.1499,
+    "slope": 0.1305,
+    "twi": 0.1041,
+    "drainage_stress": 0.0474,
+    "urbanization_index": 0.0397,
+    "drainage_capacity": 0.0315,
+    "infrastructure_decay": 0.0285,
+    "disaster_unpreparedness": 0.0283
+  },
+  "generalization_diagnosis": "WELL GENERALIZED (High fidelity across validation and test datasets, no severe overfitting)."
+}
