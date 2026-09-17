@@ -1,0 +1,61 @@
+{
+  "model_name": "Random Forest Flood Risk Classifier (100 Trees Bagging)",
+  "model_type": "sklearn.ensemble.RandomForestClassifier",
+  "serialization_format": "native_json",
+  "model_file": "random_forest_model.json",
+  "accuracy": 0.9017,
+  "precision": 0.8759,
+  "recall": 0.9359,
+  "f1_score": 0.9049,
+  "roc_auc": 0.961,
+  "pr_auc": 0.9514,
+  "brier_score": 0.0742,
+  "oob_score": 0.9029,
+  "n_estimators": 100,
+  "max_depth": 14,
+  "confusion_matrix": [
+    [
+      5386,
+      823
+    ],
+    [
+      398,
+      5810
+    ]
+  ],
+  "feature_names": [
+    "rainfall_24h",
+    "rainfall_72h",
+    "elevation",
+    "slope",
+    "twi",
+    "ndwi",
+    "ndvi",
+    "drainage_capacity",
+    "urbanization_index",
+    "infrastructure_decay",
+    "disaster_unpreparedness",
+    "precip_ratio",
+    "ponding_hazard",
+    "water_contrast",
+    "drainage_stress"
+  ],
+  "feature_importances": {
+    "elevation": 0.2688,
+    "ndvi": 0.2015,
+    "ponding_hazard": 0.1484,
+    "ndwi": 0.1351,
+    "slope": 0.0559,
+    "water_contrast": 0.0532,
+    "rainfall_72h": 0.0364,
+    "precip_ratio": 0.0338,
+    "rainfall_24h": 0.0249,
+    "twi": 0.0132,
+    "drainage_stress": 0.0123,
+    "drainage_capacity": 0.0048,
+    "infrastructure_decay": 0.0041,
+    "urbanization_index": 0.0039,
+    "disaster_unpreparedness": 0.0038
+  },
+  "generalization_diagnosis": "WELL GENERALIZED (Controlled variance, depth pruning prevented severe memorization)."
+}

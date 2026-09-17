@@ -1,167 +1,271 @@
 # 🌊 DisasterRadar.ai (FloodRisk AI)
 
 > **AI-Powered Flood Intelligence, Hydrodynamic Modeling & Early Warning Platform**  
-> An end-to-end multi-tier platform integrating satellite hydrology, deep learning, geospatial GIS mapping, and real-time telemetry to predict flood inundation risks.
+> An end-to-end multi-tier platform integrating satellite hydrology (MODIS), deep learning (PyTorch FloodNet), native gradient boosted decision trees (XGBoost), geospatial GIS mapping, and real-time telemetry to predict flood inundation risks and orchestrate evacuation intelligence.
+
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Riyan--ai--code%2FDisasterRadar.ai-blue?logo=github)](https://github.com/Riyan-ai-code/DisasterRadar.ai)
+[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue?logo=python)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18.2+-61DAFB?logo=react)](https://react.dev/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-1.7+-eb3434?logo=xgboost)](https://xgboost.readthedocs.io/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?logo=pytorch)](https://pytorch.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
 ## 📌 Table of Contents
-1. [Overview & Core Objectives](#-overview--core-objectives)
+1. [Overview & Core Capabilities](#-overview--core-capabilities)
 2. [Phased Project Roadmap](#-phased-project-roadmap)
-3. [System Architecture](#-system-architecture)
-4. [Datasets & Hydrological Sources](#-datasets--hydrological-sources)
-5. [Machine Learning Models & Metrics](#-machine-learning-models--metrics)
-6. [Interactive Jupyter Notebooks](#-interactive-jupyter-notebooks)
-7. [Installation & Setup](#-installation--setup)
-8. [Running the Platform](#-running-the-platform)
-9. [Automated Testing](#-automated-testing)
-10. [API Reference (FastAPI)](#-api-reference-fastapi)
-11. [Project Structure](#-project-structure)
+3. [Platform Views & Key Modules](#-platform-views--key-modules)
+4. [System Architecture](#-system-architecture)
+5. [Machine Learning Models & Performance](#-machine-learning-models--performance)
+6. [Datasets & Hydrological Feature Schema](#-datasets--hydrological-feature-schema)
+7. [Interactive Jupyter Notebooks](#-interactive-jupyter-notebooks)
+8. [Installation & Setup](#-installation--setup)
+9. [Running the Platform](#-running-the-platform)
+10. [Automated Testing](#-automated-testing)
+11. [API Reference (FastAPI)](#-api-reference-fastapi)
+12. [Project Directory Structure](#-project-directory-structure)
+13. [Git Workflow & Remote Pushing](#-git-workflow--remote-pushing)
 
 ---
 
-## 🎯 Overview & Core Objectives
+## 🎯 Overview & Core Capabilities
 
-**DisasterRadar.ai** provides city planners, disaster response authorities (NDRF/SDRF), and emergency dispatchers with real-time, explainable flood forecasting.
+**DisasterRadar.ai** provides municipal authorities, disaster response teams (NDRF/SDRF), urban planners, and citizens with real-time, explainable flood forecasting and decision support:
 
-- **Deep Hydro-Predictor**: Evaluates multi-window rainfall, terrain slope, Topographic Wetness Index (TWI), elevation, and municipal drainage factors.
-- **Epoch-Based Deep Learning**: PyTorch neural network (`FloodNet`) with epoch-by-epoch loss tracking, early checkpointing, and class-weighted loss.
-- **High-Resolution GIS Atlas**: Specialized Mira Bhayandar Cartographic Flood Vulnerability map with 5-tier risk choropleth, railway lines, and road corridors.
-- **Operational Dashboard**: Modern React + Vite responsive UI with donut progress gauges, SHAP risk factor breakdowns, and confusion matrix diagnostics.
+- 🔬 **High-Accuracy Flood Risk Engine**: Dual ML pipeline combining a high-performance **Native XGBoost Classifier** (`91.47%` accuracy, `92.75%` recall) and a deep **PyTorch FloodNet** neural network with residual skip connections.
+- 💡 **AI Explainer & Evacuation Intelligence**: Real-time TreeSHAP feature attribution, counterfactual "What-If" scenario simulations, and evacuation routing to designated relief shelters.
+- 🗺️ **High-Resolution GIS Atlas**: Specialized Mira Bhayandar Cartographic Flood Vulnerability map with 5-tier risk choropleth, rail corridors, and key drainage canals.
+- 🚨 **Live Emergency Dispatch & Alerts**: Severity classification (`Low`, `Moderate`, `High`, `Critical`), automatic emergency advisory generation, and downloadable incident dispatch sheets.
+- 📊 **Real-Time Model Diagnostics**: Complete visibility into ROC curves, Precision-Recall curves, confusion matrices, and epoch loss convergence histories.
 
 ---
 
 ## 🗺️ Phased Project Roadmap
 
-| Phase | Description | Status |
-| :--- | :--- | :---: |
-| **Phase 1: Core ML & Hydrological Modeling** | Unified dataset pipeline, PyTorch `FloodNet` (epoch-based), Gradient Boosting ensemble, 91.65% Accuracy, 0.9604 ROC-AUC, notebooks 01–05, and automated pytest suite. | **Completed** ✅ |
-| **Phase 2: NLP & Disaster Intelligence** | Disaster report / SOS tweet text classification, Named Entity Recognition (NER) for locations/casualties, and urgency scoring. | *Next* 🔄 |
-| **Phase 3: GenAI & Domain RAG** | Vector database (ChromaDB), disaster manual ingestion, and AI Disaster Analyst chatbot for automated situational briefings. | *Planned* ⏳ |
-| **Phase 4: Agentic AI Engineering** | Multi-agent autonomous system (Ingestion Agent, Predictor Agent, GIS Agent, Dispatcher Agent) with tool-calling. | *Planned* ⏳ |
-| **Phase 5: Geospatial / GIS & Real-time Telemetry** | 1D-2D overland mesh hydrodynamic simulation and live sensor streaming. | *In Progress* 🔄 |
-| **Phase 6: Full-Stack Production & MLOps** | Docker containerization, model registry, drift monitoring, CI/CD pipeline, and alerting. | *Planned* ⏳ |
+| Phase | Title | Key Deliverables & Milestones | Status |
+| :---: | :--- | :--- | :---: |
+| **Phase 1** | **Core ML & Hydrological Modeling** | Unified 1M+ MODIS & environmental data pipeline, 15 standardized features, Native XGBoost (`91.47%` acc, `0.9676` ROC-AUC, 349 trees), PyTorch `FloodNet` deep neural network, notebooks 01–05, and automated pytest suite. | **Completed** ✅ |
+| **Phase 2** | **AI Explainer & Evacuation Intelligence** | Project 7 (CO4 \| L6) audit fulfillment: interactive TreeSHAP local waterfall & global importance, counterfactual "What-If" simulation engine, and NDRF/SDRF shelter evacuation route planning. | **Completed** ✅ |
+| **Phase 3** | **Geospatial GIS Atlas & Telemetry** | Mira Bhayandar 5-tier vulnerability choropleth, rail corridors, storm outfalls, live hydrological telemetry streaming, and weather station monitoring. | **Completed** ✅ |
+| **Phase 4** | **Operational Dashboard & Dispatch Alerts** | Responsive React + Vite multi-view command center, real-time hazard bulletins, severity filtering (`Critical` to `Advisory`), incident reporting, and CSV dispatch exports. | **Completed** ✅ |
+| **Phase 5** | **NLP & Social Disaster Intelligence** | Social media SOS / distress post classification, Named Entity Recognition (NER) for extracting stranded victim locations, and automated urgency scoring. | *Next* 🔄 |
+| **Phase 6** | **GenAI & Disaster Knowledge RAG** | Vector database (ChromaDB) indexing official disaster management SOPs & flood manuals, powered by an LLM Disaster Assistant for automated incident briefing. | *Planned* ⏳ |
+| **Phase 7** | **Autonomous Agentic AI Orchestration** | Multi-agent coordination (Ingestion Agent, Hydrodynamic Predictor Agent, GIS Routing Agent, Dispatcher Agent) with tool-calling and self-correction. | *Planned* ⏳ |
+| **Phase 8** | **Production MLOps & Continuous Learning** | Docker containerization, automated model drift detection, automated retraining pipelines, and Prometheus/Grafana system health telemetry. | *Planned* ⏳ |
+
+---
+
+## 🖥️ Platform Views & Key Modules
+
+### 1. 🎛️ Overview Dashboard
+- **Donut Risk Gauge**: Instant visual indicator of current inundation probability and threat tier.
+- **Top Metrics**: Real-time telemetry monitoring (Rainfall 24h/72h, TWI, Elevation, Water Surface Contrast).
+- **Interactive Risk Map**: Leaflet-based spatial visualization with live sensor stations and active hazard zones.
+- **Recent Predictions Feed**: Auditable history of predicted flood events and telemetry snapshots.
+
+### 2. ⚡ Predict Risk Studio (`PredictRiskView.jsx`)
+- Interactive parameter sliders across **all 15 environmental, hydrological, and municipal factors**.
+- Quick-fill scenario presets: *Extreme Monsoon / Flash Flood*, *High Tide Surge*, *Urban Drainage Failure*, *Normal Dry Weather*.
+- Instant calculation of calibrated probability, danger level, and immediate municipal action items.
+
+### 3. 🧠 AI Flood Explainer & Evacuation Intelligence (`AiExplainerView.jsx`)
+- **Global & Local SHAP Waterfall**: Uncovers why the model flagged a particular location as hazardous.
+- **Counterfactual "What-If" Simulator**: Modify rainfall, elevation, or drainage capacity in real-time to observe the marginal impact on flood probability.
+- **Evacuation Intelligence Center**: Recommends the safest evacuation paths, designated emergency shelters, and transit time estimates based on elevation clearance.
+- **Curriculum Fulfillment**: Meets Project 7 (CO4 | Bloom's Taxonomy Level 6) audit specifications.
+
+### 4. 📈 Model Performance & Diagnostics Hub (`ModelPerformanceView.jsx`)
+- Live benchmark telemetry loaded directly from `models/metrics.json`.
+- **Interactive Confusion Matrix** (5,600 True Negatives, 5,758 True Positives on balanced validation).
+- **ROC-AUC (0.9676)** and **PR-AUC (0.9602)** interactive curves with threshold toggles.
+- **PyTorch FloodNet Epoch History**: Loss convergence curves across training and validation passes.
+- **SHAP Feature Importance**: Bar chart breakdown of the 15 features by predictive weight.
+
+### 5. 🚨 Alerts & Incident Response Center (`AlertsReportsView.jsx`)
+- Multi-tier emergency warnings with active status filters (`Critical`, `High`, `Moderate`, `Advisory`).
+- Detailed incident cards with geographical coordinates, affected population estimates, and relief contacts.
+- Quick CSV export for field response units and emergency dispatchers.
 
 ---
 
 ## 🏛️ System Architecture
 
 ```
-                                  ┌───────────────────────────────┐
-                                  │      HISTORICAL & REALTIME    │
-                                  │  - 1M-Row MODIS Satellite     │
-                                  │  - Kaggle Governance Factors  │
-                                  │  - 1D/2D Hydrodynamic Models  │
-                                  └──────────────┬────────────────┘
-                                                 │
-                                                 ▼
-                                  ┌───────────────────────────────┐
-                                  │   DATA PROCESSING & SCHEMA    │
-                                  │  - Standardized Scaler        │
-                                  │  - Leakage-Free Temporal Split│
-                                  └──────────────┬────────────────┘
-                                                 │
-                     ┌───────────────────────────┴───────────────────────────┐
-                     ▼                                                       ▼
-      ┌─────────────────────────────┐                         ┌─────────────────────────────┐
-      │     PYTORCH FLOODNET        │                         │  GRADIENT BOOSTING ENSEMBLE │
-      │  - 15 Epochs AdamW          │                         │  - Calibrated Probabilities │
-      │  - Val Recall: 91.25%       │                         │  - Accuracy: 91.65%         │
-      │  - PR-AUC: 0.7576           │                         │  - ROC-AUC: 0.9604          │
-      └──────────────┬──────────────┘                         └──────────────┬──────────────┘
-                     │                                                       │
-                     └───────────────────────────┬───────────────────────────┘
-                                                 ▼
-                                  ┌───────────────────────────────┐
-                                  │     FASTAPI REST BACKEND      │
-                                  │  - /api/predict               │
-                                  │  - /api/model/performance     │
-                                  │  - /api/gis/mira-bhayandar    │
-                                  └──────────────┬────────────────┘
-                                                 │
-                                                 ▼
-                                  ┌───────────────────────────────┐
-                                  │   REACT VITE FRONTEND (UI)    │
-                                  │  - Realtime Gauge & Advisories│
-                                  │  - Leaflet Map & GIS Atlas    │
-                                  │  - Model Performance Heatmaps │
-                                  └───────────────────────────────┘
+                               ┌─────────────────────────────────────────┐
+                               │       DATA SOURCES & TELEMETRY          │
+                               │  - MODIS Satellite Hydrology (1M rows)  │
+                               │  - Kaggle Municipal Vulnerability       │
+                               │  - Realtime Weather & Hydro Stations    │
+                               └────────────────────┬────────────────────┘
+                                                    │
+                                                    ▼
+                               ┌─────────────────────────────────────────┐
+                               │      DATA PREPARATION & SCHEMA          │
+                               │  - Zero-Null Audit & Outlier Clamping   │
+                               │  - 15 Hydrological & Satellite Features │
+                               │  - Leakage-Free Stratified 80/20 Split  │
+                               └────────────────────┬────────────────────┘
+                                                    │
+                      ┌─────────────────────────────┴─────────────────────────────┐
+                      ▼                                                           ▼
+       ┌─────────────────────────────┐                             ┌─────────────────────────────┐
+       │   PYTORCH FLOODNET DEEP NN  │                             │   NATIVE XGBOOST CLASSIFIER │
+       │  - Residual Skip Connections│                             │  - 349 Boosting Trees (hist)│
+       │  - BatchNorm1d + Dropout    │                             │  - Accuracy: 91.47%         │
+       │  - AdamW + CosineAnnealing  │                             │  - Recall: 92.75%           │
+       │  - Checkpoint: flood_net.pt │                             │  - ROC-AUC: 0.9676          │
+       └──────────────┬──────────────┘                             │  - Serialized: model.json   │
+                      │                                            └──────────────┬──────────────┘
+                      └─────────────────────────────┬─────────────────────────────┘
+                                                    ▼
+                               ┌─────────────────────────────────────────┐
+                               │           FASTAPI REST BACKEND          │
+                               │  - POST /api/predict (Inference + SHAP) │
+                               │  - GET  /api/model/performance          │
+                               │  - GET  /api/gis/mira-bhayandar         │
+                               │  - GET  /api/stations                   │
+                               └────────────────────┬────────────────────┘
+                                                    │
+                                                    ▼
+                               ┌─────────────────────────────────────────┐
+                               │          REACT + VITE FRONTEND          │
+                               │  - Donut Gauge & Live Telemetry         │
+                               │  - PredictRisk & AI Explainer Views     │
+                               │  - Evacuation Planner & Shelter Routes  │
+                               │  - Model Performance Diagnostics        │
+                               └─────────────────────────────────────────┘
 ```
 
 ---
 
-## 📊 Datasets & Hydrological Sources
+## 🧠 Machine Learning Models & Performance
 
-1. **MODIS Remote Sensing & Satellite Hydrology** (`modis_flood_features_paling cleaning (1).csv`):
-   - Over **1,025,802 records** (179 MB).
-   - Features: `precip_1d` (24h rain), `precip_3d` (72h rain), `elevation`, `slope`, `aspect`, `upstream_area`, `NDVI`, `NDWI`, `TWI`, `target`.
-2. **Environmental & Governance Vulnerability Dataset** (`archive/flood.csv`):
-   - **50,000 records** across 20 parameters including `DrainageSystems`, `TopographyDrainage`, `Urbanization`, `DeterioratingInfrastructure`, `IneffectiveDisasterPreparedness`.
-3. **1D-2D Hydrodynamic Benchmark Network (`m` folder)**:
-   - River network shapefiles, overland mesh nodes, dynamic stage, flow velocity, and water depths.
-4. **Standardized Unified Dataset** (`data/processed/processed_data.csv`):
-   - Clean 50,000-sample balanced dataset used for model training and evaluation.
+### 1. Primary Production Model: **Native XGBoost Classifier**
+- **Model File**: `models/flood_model.json` (Native XGBoost JSON, 4.7 MB — **no unsafe pickle serialization**)
+- **Architecture**: Gradient Boosted Trees (`tree_method='hist'`, `max_depth=8`, `learning_rate=0.047`, 349 boosting trees)
+- **Validation Dataset**: 12,417 balanced test samples from unified MODIS & environmental data
+
+| Metric | Score | Operational Significance |
+| :--- | :---: | :--- |
+| **Accuracy** | **91.47%** | Outstanding general classification fidelity |
+| **Recall (Sensitivity)** | **92.75%** | **Critical for Life Safety** — detects 5,758 of true flood events with minimal misses |
+| **Precision** | **90.44%** | Highly trustworthy alerts; eliminates false alarm fatigue |
+| **F1-Score** | **91.58%** | Strong harmonic balance between precision and sensitivity |
+| **ROC-AUC** | **0.9676** | Near-optimal class separability across arbitrary discrimination thresholds |
+| **PR-AUC** | **0.9602** | Robust performance on high-precision decision curves |
+| **Brier Score** | **0.0625** | Highly calibrated predicted probabilities |
+
+#### Validation Confusion Matrix (12,417 Samples)
+```
+                   Predicted Safe (0)     Predicted Flood (1)
+ Actual Safe  (0)       5,600 (TN)              609 (FP)
+ Actual Flood (1)         450 (FN)            5,758 (TP)
+```
+
+#### Top SHAP Feature Attributions
+```text
+1. elevation                 ████████████████████ 1.3698
+2. ndwi (Surface Water)      ██████████████ 0.9769
+3. ndvi (Vegetation/Moist)   ███████████ 0.7933
+4. ponding_hazard            ██████ 0.3944
+5. precip_ratio              ████ 0.2682
+6. rainfall_72h              ████ 0.2664
+7. rainfall_24h              ███ 0.2302
+8. water_contrast            ██ 0.1499
+9. slope                     ██ 0.1305
+10. twi (Wetness Index)      █ 0.1041
+```
 
 ---
 
-## 🧠 Machine Learning Models & Metrics
+### 2. Deep Learning Model: **PyTorch `FloodNet`**
+- **Model File**: `models/flood_net_best.pt`
+- **Code**: `src/models/neural_net.py`
+- **Architecture**:
+  - `Linear(15, 64) -> BatchNorm1d -> LeakyReLU(0.1) -> Dropout(0.25)`
+  - Residual block with skip connection: `h2 = LinearBlock(h1) + h1`
+  - Fully connected classification head: `Linear(64, 32) -> Linear(32, 1)`
+  - Weighted `BCEWithLogitsLoss` countering class distribution skew
+  - Trained with `AdamW` and `ReduceLROnPlateau` scheduler
 
-The models are validated against a 10,000-sample held-out validation dataset:
+---
 
-| Evaluation Metric | Native XGBoost Value | Operational Meaning |
+### 3. Bagging Ensemble Model: **Native Random Forest Classifier (JSON - Strictly NO Pickle)**
+- **Model File**: `models/random_forest_model.json` (Native JSON format, 9.46 MB — **strictly NO pickle**)
+- **Architecture**: 100 pruned decision trees (`max_depth=14`, `min_samples_split=10`, `min_samples_leaf=5`, `max_features='sqrt'`)
+- **Training Pipeline**: `src/models/train_random_forest_pipeline.py`
+- **Inference Engine**: `src/models/inference_rf.py` (Pure NumPy & JSON tree traversal)
+- **Validation Dataset**: 12,417 balanced test samples
+
+| Metric | Score | Operational Significance |
 | :--- | :---: | :--- |
-| **Accuracy** | **91.24%** | High overall classification accuracy |
-| **ROC-AUC** | **0.9623** | Exceptional discriminatory power across thresholds |
-| **Recall (Sensitivity)** | **84.77%** | High flood detection rate (catches 1,676 of true floods) |
-| **Precision** | **74.46%** | Controlled false alarm triggers |
-| **F1-Score** | **0.7928** | Strong harmonic balance |
-| **PR-AUC** | **0.8569** | Robust area under precision-recall curve |
-| **Brier Loss** | **0.0616** | Well-calibrated probabilistic output |
+| **Accuracy** | **90.17%** | High bagging baseline accuracy |
+| **Recall (Sensitivity)** | **93.59%** | Exceptional sensitivity — detects 5,810 flood events (only 398 misses) |
+| **Precision** | **87.59%** | Reliable alert triggering |
+| **F1-Score** | **90.49%** | Well-balanced harmonic performance |
+| **ROC-AUC** | **0.9610** | High discriminatory separability |
+| **PR-AUC** | **0.9514** | Robust area under precision-recall curve |
+| **OOB Score** | **0.9029** | Reliable out-of-bag generalization estimate |
+| **Brier Score** | **0.0742** | Calibrated ensemble probability estimates |
 
-### Confusion Matrix (10,000 Unseen Test Events)
-- **True Negatives (Safe correctly identified)**: 7,448
-- **False Positives (False alarms)**: 575
-- **False Negatives (Missed floods)**: 301
-- **True Positives (Floods detected)**: 1,676
+#### Validation Confusion Matrix (12,417 Samples)
+```
+                   Predicted Safe (0)     Predicted Flood (1)
+ Actual Safe  (0)       5,386 (TN)              823 (FP)
+ Actual Flood (1)         398 (FN)            5,810 (TP)
+```
 
-### TreeSHAP Local Feature Importance (Native XGBoost)
-- **Elevation** (topographic barrier): `+1.5417`
-- **NDVI** (vegetation density/saturation): `+0.9984`
-- **NDWI** (surface water index): `+0.7171`
-- **Slope** (runoff velocity): `+0.4103`
-- **Rainfall (24h)**: `+0.3536`
-- **Rainfall (72h)**: `+0.2618`
+---
 
-### PyTorch `FloodNet` Epoch Progression
-- **Optimizer**: AdamW (`lr=0.003`, `weight_decay=1e-4`) with CosineAnnealingLR.
-- **Loss**: Positive-weighted BCEWithLogitsLoss.
-- **Checkpoint**: Best checkpoint saved at Epoch 14 with **Validation Recall: 91.25%** and **PR-AUC: 0.7576**.
+## 📊 Datasets & Hydrological Feature Schema
+
+The models ingest 15 standardized features combining satellite remote sensing, ground weather telemetry, and civil infrastructure metrics:
+
+| # | Feature Key | Category | Physical Unit / Scale | Description |
+| :-: | :--- | :--- | :--- | :--- |
+| 1 | `rainfall_24h` | Meteorological | mm | Short-term 24-hour cumulative rainfall |
+| 2 | `rainfall_72h` | Meteorological | mm | Long-term 72-hour antecedent rainfall |
+| 3 | `precip_ratio` | Hydrological | Ratio [0, 1] | Ratio of 24h to 72h precipitation (intensity burst indicator) |
+| 4 | `elevation` | Topographical | meters [0 - 1000] | Digital Elevation Model (DEM) terrain height |
+| 5 | `slope` | Topographical | degrees [0 - 60] | Gradient steepness influencing surface runoff speed |
+| 6 | `twi` | Topographical | Index [0 - 25] | Topographic Wetness Index ($\ln(a / \tan\beta)$) |
+| 7 | `ndwi` | Remote Sensing | Index [-1.0, 1.0] | Normalized Difference Water Index (detects standing water) |
+| 8 | `ndvi` | Remote Sensing | Index [-1.0, 1.0] | Normalized Difference Vegetation Index (soil absorption capacity) |
+| 9 | `ponding_hazard` | Hydrological | Score [0 - 10] | Inundation accumulation potential in natural depressions |
+| 10 | `water_contrast` | Hydrological | Score [0 - 10] | Ratio of water index to surrounding dry terrain |
+| 11 | `drainage_capacity` | Infrastructure | Index [0 - 10] | Municipal stormwater network throughput |
+| 12 | `drainage_stress` | Infrastructure | Index [0 - 10] | Current surcharge pressure on stormwater outfalls |
+| 13 | `urbanization_index` | Municipal | Index [0 - 10] | Impervious surface coverage percentage |
+| 14 | `infrastructure_decay`| Municipal | Index [0 - 10] | Structural deterioration of storm drains and levees |
+| 15 | `disaster_unpreparedness` | Civil Defense | Index [0 - 10] | Administrative lack of early warning or readiness |
 
 ---
 
 ## 📓 Interactive Jupyter Notebooks
 
-All 5 core notebooks + `disaster.ipynb` contain complete, pre-computed outputs and charts:
+Complete, executed notebooks with pre-rendered interactive plots and tables:
 
-- [`notebooks/01_data_exploration.ipynb`](notebooks/01_data_exploration.ipynb): Ingestion, statistical distributions, class balance, and feature correlation with flood target.
-- [`notebooks/02_preprocessing.ipynb`](notebooks/02_preprocessing.ipynb): Zero-null verification, physical bounds clamping, and `StandardScaler` normalization.
-- [`notebooks/03_feature_engineering.ipynb`](notebooks/03_feature_engineering.ipynb): Cumulative rainfall ratio, drainage stress index, and Topographic Wetness Index.
-- [`notebooks/04_model_training.ipynb`](notebooks/04_model_training.ipynb): **Epoch-based PyTorch training loop table**, loss convergence graphs, and ensemble boosting.
-- [`notebooks/05_model_evaluation.ipynb`](notebooks/05_model_evaluation.ipynb): Model metrics table, **Confusion Matrix heatmap**, **ROC Curve**, and **Feature Importance chart**.
-- [`disaster.ipynb`](disaster.ipynb): Root natural disaster exploratory notebook configured to run locally.
+- [`notebooks/01_data_exploration.ipynb`](notebooks/01_data_exploration.ipynb): Ingestion, distributions, class balance, and feature correlations.
+- [`notebooks/02_preprocessing.ipynb`](notebooks/02_preprocessing.ipynb): Zero-null checks, physical bounds clamping, and normalization.
+- [`notebooks/03_feature_engineering.ipynb`](notebooks/03_feature_engineering.ipynb): TWI derivation, precipitation ratio, and drainage stress computation.
+- [`notebooks/04_model_training.ipynb`](notebooks/04_model_training.ipynb): PyTorch FloodNet epoch training loop, loss convergence, and XGBoost training.
+- [`notebooks/05_model_evaluation.ipynb`](notebooks/05_model_evaluation.ipynb): Confusion matrices, ROC/PR curves, and SHAP feature importance.
+- [`disaster.ipynb`](disaster.ipynb): Root natural disaster exploratory notebook.
 
 ---
 
-## 💻 Installation & Environment Setup
+## 💻 Installation & Setup
 
 ### 1. Prerequisites
-- **Python 3.10+** (Python 3.12 recommended)
+- **Python 3.10+** (Python 3.11 or 3.12 recommended)
 - **Node.js 18+** and `npm`
 - **Git**
 
-### 2. Clone the Repository & Setup Virtual Environment
+### 2. Clone the Repository & Set Up Virtual Environment
 ```bash
-git clone https://github.com/your-username/DisasterRadar.ai.git
+git clone https://github.com/Riyan-ai-code/DisasterRadar.ai.git
 cd DisasterRadar.ai
 
 # Create virtual environment
@@ -174,16 +278,14 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install All Dependencies
-
-#### Python (Backend & ML) Dependencies:
+### 3. Install Backend & ML Dependencies
 ```bash
 pip install -r backend/requirements.txt
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install optuna scikit-learn pandas numpy matplotlib seaborn pytest
+pip install xgboost optuna scikit-learn pandas numpy matplotlib seaborn pytest
 ```
 
-#### Node.js (Frontend) Dependencies:
+### 4. Install Frontend Dependencies
 ```bash
 cd frontend
 npm install
@@ -192,127 +294,46 @@ cd ..
 
 ---
 
-## 🚀 Running Commands: From ML to Backend to Frontend
+## 🚀 Running the Platform
 
-### 1️⃣ Machine Learning (ML) Commands
-
-#### A. Ingest & Merge Raw Datasets
-Combines the 1M-row MODIS satellite dataset, environmental governance data, and hydrodynamic priors into `data/processed/processed_data.csv`:
-```bash
-python src/data/merge_datasets.py
-```
-
-#### B. Train the 19-Step Native XGBoost Model (From Scratch)
-Executes data quality audit, domain feature engineering, stratified 3-way split, Optuna hyperparameter tuning, early stopping, and TreeSHAP explainability:
-```bash
-python src/models/train_xgboost_pipeline.py
-```
-> **Output Artifacts Generated:**
-> - `models/flood_model.json` (Native XGBoost JSON format — **strictly NO pickle**)
-> - `models/feature_names.json` (Ordered feature schema)
-> - `models/hyperparameters.json` (Optuna best parameters)
-> - `models/metrics.json` (Validation & test performance scores)
-> - `outputs/confusion_matrix.png`, `outputs/roc_curve.png`, `outputs/feature_importance.png`
-
-#### C. Run Standalone Production Inference with TreeSHAP
-Test predictions directly from terminal using custom sensor telemetry:
-```bash
-python src/models/inference.py
-```
-
-#### D. Regenerate All Executed Jupyter Notebooks
-Compiles and updates notebooks 01 to 05 and `disaster.ipynb` with fresh execution outputs and charts:
-```bash
-python src/build_executed_notebooks.py
-```
-
-#### E. Run Automated Test Suite
-```bash
-python -m pytest tests/ -v
-```
-
----
-
-### 2️⃣ Backend (FastAPI) Commands
-
-#### A. Start the FastAPI Server
-Open a terminal in the root directory:
+### Step 1: Start the FastAPI Backend
 ```bash
 cd backend
 python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
+- API Root: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- Swagger Documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- ReDoc API Guide: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 
-#### B. Verify Backend Endpoints
-Once running, the API is available at `http://127.0.0.1:8000`:
-- **Interactive Swagger Documentation**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **ReDoc Alternative UI**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-
-#### C. Test API Health & Performance from Terminal
-```bash
-# Check server health:
-curl -X GET http://127.0.0.1:8000/api/health
-
-# Check live model metrics (XGBoost 91.59% accuracy):
-curl -X GET http://127.0.0.1:8000/api/model/performance
-
-# Test flood prediction on custom telemetry:
-curl -X POST http://127.0.0.1:8000/api/predict ^
-  -H "Content-Type: application/json" ^
-  -d "{\"rainfall24h\":85.0,\"rainfall72h\":190.0,\"temperature\":28.5,\"humidity\":82.0,\"elevation\":15.0,\"pressure\":1004.0,\"location\":\"Bengaluru, Karnataka\"}"
-```
-
----
-
-### 3️⃣ Frontend (React + Vite) Commands
-
-#### A. Start the React Development Server
-Open a second terminal:
+### Step 2: Start the React Frontend Dashboard
+Open a second terminal window:
 ```bash
 cd frontend
 npm run dev
 ```
-> **Frontend URL**: [http://127.0.0.1:5173/](http://127.0.0.1:5173/)  
-> Includes: Donut risk gauge, live Leaflet map, Mira Bhayandar GIS Atlas, Model Performance tab (ROC & Confusion Matrix), and Recent Predictions table.
-
-#### B. Build for Production
-```bash
-cd frontend
-npm run build
-```
+- Dashboard URL: [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
 ---
 
-## ⚡ Quickstart Summary (Run All 3 Layers)
+## 🧪 Automated Testing
 
-```powershell
-# Terminal 1: Train ML Model & Start Backend
-python src/models/train_xgboost_pipeline.py
-cd backend
-python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-
-# Terminal 2: Start Frontend Dashboard
-cd frontend
-npm run dev
-```
-
----
-
-## 🧪 Automated Testing Verification
-
-Run the full automated test suite to verify pipeline integrity, preprocessing bounds, and native XGBoost inference:
+Run the full automated test suite verifying data bounds, model serialization, and inference:
 ```bash
 python -m pytest tests/ -v
 ```
 
 Expected output:
 ```text
-tests/test_prediction.py::test_native_xgboost_json_exists PASSED         [ 20%]
-tests/test_prediction.py::test_inference_pipeline_execution PASSED       [ 40%]
-tests/test_prediction.py::test_metrics_json_integrity PASSED             [ 60%]
-tests/test_preprocessing.py::test_dataset_exists_and_valid PASSED        [ 80%]
-tests/test_preprocessing.py::test_feature_distributions_and_bounds PASSED [100%]
+tests/test_prediction.py::test_native_xgboost_json_exists PASSED         [ 12%]
+tests/test_prediction.py::test_inference_pipeline_execution PASSED       [ 25%]
+tests/test_prediction.py::test_metrics_json_integrity PASSED             [ 37%]
+tests/test_preprocessing.py::test_dataset_exists_and_valid PASSED        [ 50%]
+tests/test_preprocessing.py::test_feature_distributions_and_bounds PASSED [ 62%]
+tests/test_random_forest.py::test_random_forest_json_exists PASSED       [ 75%]
+tests/test_random_forest.py::test_random_forest_metrics_integrity PASSED [ 87%]
+tests/test_random_forest.py::test_random_forest_inference_execution PASSED [100%]
 
-======================= 5 passed in ~3.8s ========================
+======================= 8 passed in ~2.6s ========================
 ```
 
 ---
@@ -321,56 +342,85 @@ tests/test_preprocessing.py::test_feature_distributions_and_bounds PASSED [100%]
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/health` | Healthcheck and timestamp |
-| `POST` | `/api/predict` | Predict flood risk percentage, level, advisory, and SHAP factors |
-| `GET` | `/api/stations` | Live weather stations telemetry and sensor data |
-| `GET` | `/api/model/performance` | Real validation metrics (Accuracy, ROC-AUC, Confusion Matrix) |
-| `GET` | `/api/gis/mira-bhayandar` | Geospatial GeoJSON risk polygons, railway line, and points of interest |
-| `GET` | `/api/predictions/recent` | History of recent predictions |
+| `GET` | `/api/health` | Service health status and timestamp |
+| `POST` | `/api/predict` | Predict flood probability, risk tier, advisory, and SHAP contributors |
+| `GET` | `/api/model/performance` | Real validation metrics (Accuracy, ROC-AUC, PR-AUC, Confusion Matrix) |
+| `GET` | `/api/stations` | Live weather and hydrological station telemetry |
+| `GET` | `/api/alerts` | Active flood hazard warnings and severity advisories |
+| `GET` | `/api/gis/mira-bhayandar` | GeoJSON polygons for Mira Bhayandar risk zones and transit routes |
+| `GET` | `/api/predictions/recent` | History of recent predictions and evaluated telemetry |
 
 ---
 
-## 📂 Project Structure
+## 📂 Project Directory Structure
 
 ```
 DisasterRadar.ai/
-├── archive/                     # Kaggle environmental vulnerability dataset (flood.csv)
-├── backend/                     # FastAPI REST API
-│   ├── main.py                  # API endpoints and middleware
-│   ├── models/schemas.py        # Pydantic request/response schemas
-│   └── services/                # Predictor, telemetry stations, and GIS data
-├── data/                        # Hydrological datasets
-│   ├── processed/               # Standardized processed_data.csv
-│   └── raw/                     # Raw telemetry and weather inputs
-├── frontend/                    # Modern React (Vite) Web Application
+├── backend/                       # FastAPI REST API Service
+│   ├── main.py                    # REST route definitions and handlers
+│   ├── config.py                  # Environment and directory configurations
+│   ├── models/schemas.py          # Pydantic validation schemas
+│   └── services/                  # Business logic (Predictor, Telemetry, GIS)
+│       ├── predictor.py           # Native XGBoost inference engine
+│       ├── stations.py            # Realtime sensor stations provider
+│       ├── gis_data.py            # Mira Bhayandar geospatial GeoJSON data
+│       └── alerts_service.py      # Hazard alert dispatch and management
+├── frontend/                      # Modern React + Vite Dashboard
 │   ├── src/
-│   │   ├── App.jsx              # Main dashboard view & tabs
-│   │   ├── components/          # TopMetrics, InputParameters, RiskMap, MiraBhayandarAtlas
-│   │   └── services/api.js      # Backend API connector
+│   │   ├── App.jsx                # Application shell and view router
+│   │   ├── components/            # High-fidelity UI modules
+│   │   │   ├── TopMetrics.jsx     # Telemetry summary metric cards
+│   │   │   ├── PredictRiskView.jsx# 15-parameter scenario simulation studio
+│   │   │   ├── AiExplainerView.jsx# SHAP waterfall, What-If & Evacuation planner
+│   │   │   ├── ModelPerformanceView.jsx # Confusion matrix, ROC & PR curves
+│   │   │   ├── AlertsReportsView.jsx    # Emergency warnings & incident reports
+│   │   │   ├── RiskMap.jsx        # Leaflet geospatial risk visualizer
+│   │   │   └── Sidebar.jsx        # Navigation sidebar
+│   │   └── services/api.js        # Axios API client
 │   └── package.json
-├── models/                      # Serialized ML & Deep Learning checkpoints
-│   ├── flood_model.json         # Native XGBoost model (JSON format, NO pickle)
-│   ├── flood_net_best.pt        # Trained PyTorch FloodNet weights
-│   └── metrics.json             # Performance metrics & confusion matrix
-├── notebooks/                   # Pre-executed Jupyter Notebooks
-│   ├── 01_data_exploration.ipynb
-│   ├── 02_preprocessing.ipynb
-│   ├── 03_feature_engineering.ipynb
-│   ├── 04_model_training.ipynb
-│   └── 05_model_evaluation.ipynb
-├── outputs/                     # Generated evaluation plots (Confusion matrix, ROC curve, etc.)
-├── src/                         # Python ML pipelines
-│   ├── data/merge_datasets.py   # Multi-source dataset synthesis
-│   ├── models/train_all.py      # PyTorch epoch training & ensemble training
-│   └── build_executed_notebooks.py # Notebook output compiler
-├── tests/                       # Automated Pytest suite
-│   ├── test_prediction.py
-│   └── test_preprocessing.py
-├── disaster.ipynb               # Natural disaster EDA notebook
-└── README.md                    # Project documentation
+├── models/                        # Serialized Machine Learning Checkpoints
+│   ├── flood_model.json           # Native XGBoost model (JSON format, 4.7 MB)
+│   ├── random_forest_model.json   # Native Random Forest model (JSON format, 9.4 MB)
+│   ├── flood_net_best.pt          # PyTorch FloodNet weights
+│   ├── metrics.json               # Full XGBoost performance metrics & SHAP
+│   ├── random_forest_metrics.json # Full Random Forest performance metrics
+│   ├── random_forest_hyperparameters.json # RF bagging parameters
+│   ├── feature_names.json         # 15-feature schema definition
+│   └── hyperparameters.json       # Best XGBoost hyperparameter configuration
+├── notebooks/                     # Executed Jupyter Notebooks (01 to 05)
+├── outputs/                       # Generated evaluation plots (PNG charts)
+├── src/                           # Machine Learning Source Code
+│   ├── data/                      # Dataset loading and preprocessing scripts
+│   ├── features/                  # Feature engineering and scaling
+│   └── models/                    # Model architectures, training & inference
+│       ├── neural_net.py          # PyTorch FloodNet implementation
+│       ├── train_xgboost_pipeline.py # 19-step training pipeline
+│       ├── train_random_forest_pipeline.py # End-to-end Random Forest pipeline
+│       ├── inference.py           # Native XGBoost inference
+│       └── inference_rf.py        # Native JSON Random Forest inference
+├── tests/                         # Automated Pytest suite
+│   ├── test_prediction.py         # XGBoost & feature tests
+│   ├── test_preprocessing.py      # Data & bounds tests
+│   └── test_random_forest.py      # Native JSON Random Forest tests
+├── disaster.ipynb                 # Exploratory data analysis notebook
+└── README.md                      # Comprehensive project documentation
 ```
+
+---
+
+## 🔄 Git Workflow & Remote Pushing
+
+To push new commits from your local environment to GitHub:
+
+```powershell
+cd C:\Users\DELL\Desktop\disaster\DisasterRadar.ai
+git status
+git push origin main
+```
+
+> **Remote Repository:** [https://github.com/Riyan-ai-code/DisasterRadar.ai.git](https://github.com/Riyan-ai-code/DisasterRadar.ai.git)
 
 ---
 
 ## 📜 License
-This project is open-source under the MIT License.
+This project is open-source under the [MIT License](LICENSE).

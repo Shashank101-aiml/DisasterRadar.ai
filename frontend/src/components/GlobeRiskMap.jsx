@@ -109,7 +109,8 @@ export default function GlobeRiskMap({
   });
 
   // ==========================================================================
-  // 1. THREE.JS 3D WORLD GLOBE ENGINE
+  // ==========================================================================
+  // 1. THREE.JS 3D WORLD GLOBE ENGINE (ULTRA 3D DIMENSIONAL REALISM)
   // ==========================================================================
   useEffect(() => {
     if (viewMode !== '3d-globe' || !globeContainerRef.current) return;
@@ -118,126 +119,308 @@ export default function GlobeRiskMap({
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 560;
 
-    // Scene setup
+    // 1. Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060b18); // Deep space dark navy
+    scene.background = new THREE.Color(0x040711); // Deep space cosmic black
 
-    // Camera setup
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
-    camera.position.z = 290;
+    // 2. Camera setup with dynamic perspective
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 3000);
+    camera.position.z = 285;
 
-    // WebGL Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // 3. WebGL Renderer with High-DPI antialiasing
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
-    // Ambient & Directional Sun Lighting
-    const ambientLight = new THREE.AmbientLight(0xddeeff, 1.2);
+    // 4. Multi-directional Cinematic 3D Lighting
+    // Strong Key Sun Light (produces dramatic continental shadows and relief)
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
+    sunLight.position.set(450, 200, 320);
+    scene.add(sunLight);
+
+    // Earthshine / Atmosphere Back-scatter Light (subtle cyan/sky glow)
+    const backRimLight = new THREE.DirectionalLight(0x0284c7, 0.9);
+    backRimLight.position.set(-400, -120, -280);
+    scene.add(backRimLight);
+
+    // Deep space cold ambient fill (keeps dark side of planet visible with coordinate lines)
+    const ambientLight = new THREE.AmbientLight(0x0a1628, 0.6);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
-    dirLight.position.set(400, 200, 300);
-    scene.add(dirLight);
-
-    const backlight = new THREE.DirectionalLight(0x38bdf8, 0.6);
-    backlight.position.set(-300, -100, -200);
-    scene.add(backlight);
-
-    // Starfield Background Particle Dust
+    // 5. Dual-Layer Multi-Depth 3D Starfield
+    const starFieldGroup = new THREE.Group();
+    // Distant micro-stars
     const starsGeo = new THREE.BufferGeometry();
     const starCoords = [];
-    for (let i = 0; i < 900; i++) {
-      const x = (Math.random() - 0.5) * 1600;
-      const y = (Math.random() - 0.5) * 1600;
-      const z = (Math.random() - 0.5) * 1600 - 300;
+    for (let i = 0; i < 1200; i++) {
+      const x = (Math.random() - 0.5) * 2000;
+      const y = (Math.random() - 0.5) * 2000;
+      const z = (Math.random() - 0.5) * 1800 - 400;
       starCoords.push(x, y, z);
     }
     starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
-    const starsMat = new THREE.PointsMaterial({ color: 0x94a3b8, size: 1.2, transparent: true, opacity: 0.7 });
-    const starField = new THREE.Points(starsGeo, starsMat);
-    scene.add(starField);
+    const starsMat = new THREE.PointsMaterial({ color: 0x94a3b8, size: 1.1, transparent: true, opacity: 0.65 });
+    starFieldGroup.add(new THREE.Points(starsGeo, starsMat));
 
-    // Generate high-resolution procedural Earth texture on canvas
-    const canvas = document.createElement('canvas');
-    canvas.width = 2048;
-    canvas.height = 1024;
-    const ctx = canvas.getContext('2d');
+    // Foreground brighter navigation stars
+    const navStarsGeo = new THREE.BufferGeometry();
+    const navStarCoords = [];
+    for (let i = 0; i < 180; i++) {
+      const x = (Math.random() - 0.5) * 1400;
+      const y = (Math.random() - 0.5) * 1400;
+      const z = (Math.random() - 0.5) * 1200 - 200;
+      navStarCoords.push(x, y, z);
+    }
+    navStarsGeo.setAttribute('position', new THREE.Float32BufferAttribute(navStarCoords, 3));
+    const navStarsMat = new THREE.PointsMaterial({ color: 0x38bdf8, size: 1.8, transparent: true, opacity: 0.85 });
+    starFieldGroup.add(new THREE.Points(navStarsGeo, navStarsMat));
+    scene.add(starFieldGroup);
 
-    // Deep ocean gradient
-    const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
-    oceanGrad.addColorStop(0, '#0c2340');
-    oceanGrad.addColorStop(0.5, '#0a192f');
-    oceanGrad.addColorStop(1, '#07162c');
-    ctx.fillStyle = oceanGrad;
-    ctx.fillRect(0, 0, 2048, 1024);
+    // 6. High-Resolution Procedural Texture Generation (Albedo, Bump Relief, Specular, Clouds)
+    const canvasW = 2048;
+    const canvasH = 1024;
+
+    // A. Albedo Canvas (Land, Oceans, Polar Caps)
+    const albedoCanvas = document.createElement('canvas');
+    albedoCanvas.width = canvasW;
+    albedoCanvas.height = canvasH;
+    const albedoCtx = albedoCanvas.getContext('2d');
+
+    // Deep oceanic body
+    albedoCtx.fillStyle = '#07162c';
+    albedoCtx.fillRect(0, 0, canvasW, canvasH);
+
+    // Draw rich multi-tone continents and landforms
+    drawRichContinents(albedoCtx, canvasW, canvasH);
 
     // Lat / Long Coordinate Grid lines on Earth
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
-    ctx.lineWidth = 1;
+    albedoCtx.strokeStyle = 'rgba(56, 189, 248, 0.14)';
+    albedoCtx.lineWidth = 1;
     for (let lat = -80; lat <= 80; lat += 20) {
-      const y = ((90 - lat) / 180) * 1024;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(2048, y);
-      ctx.stroke();
+      const y = ((90 - lat) / 180) * canvasH;
+      albedoCtx.beginPath();
+      albedoCtx.moveTo(0, y);
+      albedoCtx.lineTo(canvasW, y);
+      albedoCtx.stroke();
     }
     for (let lng = -180; lng <= 180; lng += 30) {
-      const x = ((lng + 180) / 360) * 2048;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, 1024);
-      ctx.stroke();
+      const x = ((lng + 180) / 360) * canvasW;
+      albedoCtx.beginPath();
+      albedoCtx.moveTo(x, 0);
+      albedoCtx.lineTo(x, canvasH);
+      albedoCtx.stroke();
     }
 
-    // Try to load high-res Earth satellite texture with procedural canvas fallback
-    const earthTexture = new THREE.CanvasTexture(canvas);
+    // B. Bump Map Canvas (Grayscale Elevation for 3D Mountain/Topography Relief)
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = canvasW;
+    bumpCanvas.height = canvasH;
+    const bumpCtx = bumpCanvas.getContext('2d');
+    bumpCtx.fillStyle = '#000000'; // Oceans have zero elevation
+    bumpCtx.fillRect(0, 0, canvasW, canvasH);
+    drawElevationRelief(bumpCtx, canvasW, canvasH);
+
+    // C. Specular Map Canvas (Oceans reflect sunlight; land is matte)
+    const specCanvas = document.createElement('canvas');
+    specCanvas.width = canvasW;
+    specCanvas.height = canvasH;
+    const specCtx = specCanvas.getContext('2d');
+    specCtx.fillStyle = '#c0d0e0'; // Water is reflective
+    specCtx.fillRect(0, 0, canvasW, canvasH);
+    drawContinentMask(specCtx, canvasW, canvasH, '#000000'); // Land is non-reflective
+
+    // D. Cloud Layer Canvas (Atmospheric swirls)
+    const cloudCanvas = document.createElement('canvas');
+    cloudCanvas.width = canvasW;
+    cloudCanvas.height = canvasH;
+    const cloudCtx = cloudCanvas.getContext('2d');
+    drawProceduralClouds(cloudCtx, canvasW, canvasH);
+
+    // Textures
+    const earthTexture = new THREE.CanvasTexture(albedoCanvas);
     earthTexture.wrapS = THREE.RepeatWrapping;
     earthTexture.wrapT = THREE.ClampToEdgeWrapping;
 
-    // Async load realistic Earth land/ocean map image
-    const imgLoader = new THREE.TextureLoader();
-    imgLoader.load(
-      'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
-      (loadedTex) => {
-        if (globeMesh) {
-          globeMesh.material.map = loadedTex;
-          globeMesh.material.needsUpdate = true;
-        }
-      },
-      undefined,
-      () => {
-        // Fallback procedural land rendering if offline
-        drawProceduralContinents(ctx);
-        earthTexture.needsUpdate = true;
-      }
-    );
+    const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+    bumpTexture.wrapS = THREE.RepeatWrapping;
+    bumpTexture.wrapT = THREE.ClampToEdgeWrapping;
 
-    // Earth Sphere Mesh
+    const specularTexture = new THREE.CanvasTexture(specCanvas);
+    specularTexture.wrapS = THREE.RepeatWrapping;
+    specularTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+    const cloudTexture = new THREE.CanvasTexture(cloudCanvas);
+    cloudTexture.wrapS = THREE.RepeatWrapping;
+    cloudTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+    // 7. Base Earth Sphere with High Polygon Density & 3D Bump Relief
     const globeRadius = 95;
-    const globeGeo = new THREE.SphereGeometry(globeRadius, 64, 64);
+    const globeGeo = new THREE.SphereGeometry(globeRadius, 96, 96);
     const globeMat = new THREE.MeshPhongMaterial({
       map: earthTexture,
-      shininess: 18,
-      specular: new THREE.Color(0x1e3a8a)
+      bumpMap: bumpTexture,
+      bumpScale: 3.4, // Physically raises mountain ranges & coastlines in 3D
+      specularMap: specularTexture,
+      specular: new THREE.Color(0x60a5fa), // Vivid oceanic specular sun glint
+      shininess: 45
     });
     const globeMesh = new THREE.Mesh(globeGeo, globeMat);
     scene.add(globeMesh);
 
-    // Glowing Atmospheric Aura
-    const atmosGeo = new THREE.SphereGeometry(globeRadius * 1.05, 48, 48);
-    const atmosMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+    // Async load photo-realistic NASA imagery if available, seamlessly swapping in
+    const imgLoader = new THREE.TextureLoader();
+    imgLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg', (tex) => {
+      globeMesh.material.map = tex;
+      globeMesh.material.needsUpdate = true;
+    });
+    imgLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png', (bumpTex) => {
+      globeMesh.material.bumpMap = bumpTex;
+      globeMesh.material.bumpScale = 3.6;
+      globeMesh.material.needsUpdate = true;
+    });
+
+    // 8. TRUE 3D FLOATING CLOUD LAYER (With Separate Parallax Rotation)
+    const cloudGeo = new THREE.SphereGeometry(globeRadius * 1.018, 80, 80);
+    const cloudMat = new THREE.MeshPhongMaterial({
+      map: cloudTexture,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.44,
+      blending: THREE.NormalBlending,
+      depthWrite: false
+    });
+    const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+    scene.add(cloudMesh);
+
+    imgLoader.load('https://unpkg.com/three-globe/example/img/earth-clouds.png', (cTex) => {
+      cloudMesh.material.map = cTex;
+      cloudMesh.material.needsUpdate = true;
+    });
+
+    // 9. ATMOSPHERIC RAYLEIGH FRESNEL HALO SHADER
+    // Custom vertex/fragment shader gives photorealistic luminous limb glow
+    const atmosGeo = new THREE.SphereGeometry(globeRadius * 1.15, 64, 64);
+    const atmosMat = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          vec3 viewDir = normalize(-vPosition);
+          float fresnel = pow(0.72 - dot(vNormal, viewDir), 2.4);
+          gl_FragColor = vec4(0.22, 0.74, 0.97, 1.0) * fresnel * 1.35;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
-      blending: THREE.AdditiveBlending
+      transparent: true,
+      depthWrite: false
     });
     const atmosphereMesh = new THREE.Mesh(atmosGeo, atmosMat);
     scene.add(atmosphereMesh);
 
-    // Beacon & Target Marker Group
+    // Inner soft atmospheric rim
+    const innerAtmosGeo = new THREE.SphereGeometry(globeRadius * 1.006, 64, 64);
+    const innerAtmosMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.FrontSide,
+      blending: THREE.AdditiveBlending
+    });
+    const innerAtmosMesh = new THREE.Mesh(innerAtmosGeo, innerAtmosMat);
+    scene.add(innerAtmosMesh);
+
+    // 10. 3D TELEMETRY ARCS & DATA FLOW WAVES (Connecting Major World Weather Centers)
+    const arcGroup = new THREE.Group();
+    const arcsData = [];
+    const worldHubs = [
+      { from: [19.29, 72.85], to: [35.67, 139.65] }, // Mira Bhayandar -> Tokyo
+      { from: [19.29, 72.85], to: [51.50, -0.12] },  // Mira Bhayandar -> London
+      { from: [19.29, 72.85], to: [1.35, 103.81] },  // Mira Bhayandar -> Singapore
+      { from: [35.67, 139.65], to: [37.77, -122.41] }, // Tokyo -> San Francisco
+      { from: [51.50, -0.12], to: [40.71, -74.00] },  // London -> New York
+      { from: [40.71, -74.00], to: [25.76, -80.19] },  // New York -> Miami
+      { from: [1.35, 103.81], to: [-33.86, 151.20] }  // Singapore -> Sydney
+    ];
+
+    worldHubs.forEach((hub, idx) => {
+      const vStart = latLngToVector3(hub.from[0], hub.from[1], globeRadius);
+      const vEnd = latLngToVector3(hub.to[0], hub.to[1], globeRadius);
+
+      // Apex lifted high above Earth surface (radius 118-124)
+      const mid = vStart.clone().add(vEnd).multiplyScalar(0.5);
+      const distance = vStart.distanceTo(vEnd);
+      const apexRadius = globeRadius + Math.min(32, Math.max(16, distance * 0.18));
+      mid.normalize().multiplyScalar(apexRadius);
+
+      const curve = new THREE.QuadraticBezierCurve3(vStart, mid, vEnd);
+      const points = curve.getPoints(45);
+      const arcGeo = new THREE.BufferGeometry().setFromPoints(points);
+      const arcMat = new THREE.LineBasicMaterial({
+        color: idx % 2 === 0 ? 0x38bdf8 : 0x0284c7,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending
+      });
+      const arcLine = new THREE.Line(arcGeo, arcMat);
+      arcGroup.add(arcLine);
+
+      // Glowing moving photon bead traveling along arc
+      const beadGeo = new THREE.SphereGeometry(1.2, 8, 8);
+      const beadMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+      const beadMesh = new THREE.Mesh(beadGeo, beadMat);
+      arcGroup.add(beadMesh);
+
+      arcsData.push({ curve, bead: beadMesh, progress: (idx * 0.15) % 1 });
+    });
+    globeMesh.add(arcGroup);
+
+    // 11. 3D ORBITING WEATHER RADAR SATELLITE
+    const satelliteGroup = new THREE.Group();
+    // Satellite bus body
+    const satBodyGeo = new THREE.BoxGeometry(2.2, 2.2, 3.2);
+    const satBodyMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.85, roughness: 0.25 });
+    const satBody = new THREE.Mesh(satBodyGeo, satBodyMat);
+    satelliteGroup.add(satBody);
+
+    // Solar panels
+    const panelGeo = new THREE.BoxGeometry(7.0, 0.2, 2.0);
+    const panelMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
+    const leftPanel = new THREE.Mesh(panelGeo, panelMat);
+    leftPanel.position.set(-5.0, 0, 0);
+    satelliteGroup.add(leftPanel);
+
+    const rightPanel = new THREE.Mesh(panelGeo, panelMat);
+    rightPanel.position.set(5.0, 0, 0);
+    satelliteGroup.add(rightPanel);
+
+    // Satellite orbital path ring (tilted at 58 degrees)
+    const satOrbitGeo = new THREE.RingGeometry(137.5, 138.2, 64);
+    const satOrbitMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide
+    });
+    const satOrbitRing = new THREE.Mesh(satOrbitGeo, satOrbitMat);
+    satOrbitRing.rotation.x = Math.PI * 0.38;
+    satOrbitRing.rotation.y = Math.PI * 0.15;
+    scene.add(satOrbitRing);
+    scene.add(satelliteGroup);
+
+    // 12. 3D Holographic Target Beacon Marker Group
     const beaconGroup = new THREE.Group();
     globeMesh.add(beaconGroup);
 
@@ -247,17 +430,21 @@ export default function GlobeRiskMap({
       camera,
       renderer,
       globeMesh,
+      cloudMesh,
       atmosphereMesh,
       beaconGroup,
+      satelliteGroup,
+      arcsData,
       targetRotation: { x: 0, y: 0 },
       currentRotation: { x: 0, y: 0 },
       isDragging: false,
       prevMouse: { x: 0, y: 0 },
       reqId: null,
-      pulseVal: 0
+      pulseVal: 0,
+      satAngle: 0
     };
 
-    // Calculate rotation to face initial target (Mira Bhayandar: lat 19.29, lng 72.85)
+    // Calculate rotation to face initial target
     updateGlobeTargetRotation(targetLocation.lat, targetLocation.lng);
 
     // Mouse Controls (Rotate / Orbit / Zoom)
@@ -272,10 +459,10 @@ export default function GlobeRiskMap({
       const deltaY = e.clientY - threeStateRef.current.prevMouse.y;
       threeStateRef.current.prevMouse = { x: e.clientX, y: e.clientY };
 
-      threeStateRef.current.targetRotation.y += deltaX * 0.006;
+      threeStateRef.current.targetRotation.y += deltaX * 0.0055;
       threeStateRef.current.targetRotation.x = Math.max(
         -Math.PI / 2.2,
-        Math.min(Math.PI / 2.2, threeStateRef.current.targetRotation.x + deltaY * 0.006)
+        Math.min(Math.PI / 2.2, threeStateRef.current.targetRotation.x + deltaY * 0.0055)
       );
     };
 
@@ -285,7 +472,8 @@ export default function GlobeRiskMap({
 
     const onWheel = (e) => {
       e.preventDefault();
-      camera.position.z = Math.max(160, Math.min(480, camera.position.z + e.deltaY * 0.25));
+      // Allow zooming close (135 units) for maximum 3D terrain horizon curvature
+      camera.position.z = Math.max(135, Math.min(480, camera.position.z + e.deltaY * 0.25));
     };
 
     container.addEventListener('mousedown', onMouseDown);
@@ -304,14 +492,15 @@ export default function GlobeRiskMap({
     };
     window.addEventListener('resize', handleResize);
 
-    // Animation Loop
+    // 13. Dynamic Animation Loop (Parallax, Clouds, Telemetry Pulses, Orbiting Satellite)
     let pulseVal = 0;
+    let satAngle = 0;
     const animate = () => {
       threeStateRef.current.reqId = requestAnimationFrame(animate);
 
       // Auto rotation if not dragging and autoRotate is on
       if (autoRotate && !threeStateRef.current.isDragging) {
-        threeStateRef.current.targetRotation.y += 0.0018;
+        threeStateRef.current.targetRotation.y += 0.0016;
       }
 
       // Smooth damping interpolation (Ease-Out)
@@ -325,14 +514,44 @@ export default function GlobeRiskMap({
         globeMesh.rotation.y = cur.y;
       }
 
-      // Pulse beacon marker
-      pulseVal += 0.05;
+      // TRUE 3D CLOUD PARALLAX: Clouds rotate slightly faster and independent from the Earth below
+      if (cloudMesh) {
+        cloudMesh.rotation.x = cur.x * 0.98;
+        cloudMesh.rotation.y = cur.y * 1.04 + 0.0004;
+      }
+
+      // Animate 3D Telemetry Traveling Photons
+      if (threeStateRef.current.arcsData) {
+        threeStateRef.current.arcsData.forEach((arc) => {
+          arc.progress = (arc.progress + 0.008) % 1;
+          const pos = arc.curve.getPoint(arc.progress);
+          arc.bead.position.copy(pos);
+        });
+      }
+
+      // Animate 3D Orbiting Satellite around Earth
+      satAngle += 0.012;
+      const orbitR = 138;
+      const sx = Math.cos(satAngle) * orbitR;
+      const sz = Math.sin(satAngle) * orbitR * Math.cos(0.55);
+      const sy = Math.sin(satAngle) * orbitR * Math.sin(0.55);
+      satelliteGroup.position.set(sx, sy, sz);
+      satelliteGroup.lookAt(0, 0, 0);
+
+      // Animate 3D Holographic Target Beacon (Pulsing ring + rotating diamond)
+      pulseVal += 0.055;
       if (beaconGroup) {
         const ring = beaconGroup.getObjectByName('beaconRing');
         if (ring) {
           const s = 1.0 + Math.sin(pulseVal) * 0.45;
           ring.scale.set(s, s, s);
           ring.material.opacity = 0.85 - (s - 1.0) * 0.8;
+        }
+        const crystal = beaconGroup.getObjectByName('beaconCrystal');
+        if (crystal) {
+          crystal.rotation.y += 0.04;
+          crystal.rotation.x += 0.02;
+          crystal.position.y += Math.sin(pulseVal * 1.5) * 0.04;
         }
       }
 
@@ -351,10 +570,74 @@ export default function GlobeRiskMap({
     };
   }, [viewMode, autoRotate]);
 
-  // Helper: Procedural fallback continents
-  function drawProceduralContinents(ctx) {
-    ctx.fillStyle = '#1e3a5f';
-    // Simplified World Continents Polygons
+  // Helper: Draw Rich Biome Continents (Foliage, highlands, deserts, polar ice caps)
+  function drawRichContinents(ctx, w, h) {
+    // Base continent shapes
+    ctx.fillStyle = '#1e3a5f'; // Coastal waters / continental shelf
+    drawRawPolygons(ctx);
+
+    // Foliage & temperate landmass
+    ctx.fillStyle = '#22543d';
+    drawInnerLand(ctx);
+
+    // Arid & mountainous elevations
+    ctx.fillStyle = '#65532f';
+    drawMountainRidges(ctx);
+
+    // Polar ice caps (North & South)
+    ctx.fillStyle = '#f1f5f9';
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h * 0.09); // Arctic
+    ctx.fill();
+    ctx.beginPath();
+    ctx.rect(0, h * 0.91, w, h * 0.09); // Antarctica
+    ctx.fill();
+  }
+
+  // Helper: Draw Grayscale Elevation Relief for 3D Bump Mapping
+  function drawElevationRelief(ctx, w, h) {
+    // Continents base elevation (mid-gray)
+    ctx.fillStyle = '#555555';
+    drawRawPolygons(ctx);
+
+    // Mountain chains (bright white for maximum physical height)
+    ctx.fillStyle = '#ffffff';
+    drawMountainRidges(ctx);
+  }
+
+  // Helper: Mask for Specular Reflection
+  function drawContinentMask(ctx, w, h, fillStyle) {
+    ctx.fillStyle = fillStyle;
+    drawRawPolygons(ctx);
+  }
+
+  // Helper: Procedural Weather Front Cloud Swirls
+  function drawProceduralClouds(ctx, w, h) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+
+    // Equatorial trade wind cloud bands
+    for (let i = 0; i < 40; i++) {
+      const cx = (i * 55) % w;
+      const cy = h * 0.45 + (Math.sin(i * 0.8) * 60);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 75, 22, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Mid-latitude cyclone spirals
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    const spirals = [
+      [380, 260], [800, 240], [1350, 270], [1700, 250],
+      [450, 720], [1150, 740], [1600, 710]
+    ];
+    spirals.forEach(([sx, sy]) => {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 50, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function drawRawPolygons(ctx) {
     // North America
     ctx.beginPath();
     ctx.ellipse(450, 320, 190, 110, 0.2, 0, Math.PI * 2);
@@ -371,13 +654,53 @@ export default function GlobeRiskMap({
     ctx.beginPath();
     ctx.ellipse(1100, 560, 150, 200, 0.1, 0, Math.PI * 2);
     ctx.fill();
-    // India
+    // India & Southeast Asia
     ctx.beginPath();
     ctx.ellipse(1440, 460, 70, 90, 0.3, 0, Math.PI * 2);
     ctx.fill();
     // Australia
     ctx.beginPath();
     ctx.ellipse(1750, 720, 110, 80, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawInnerLand(ctx) {
+    ctx.beginPath();
+    ctx.ellipse(440, 315, 150, 80, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(645, 660, 85, 150, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(1390, 290, 260, 120, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(1090, 550, 115, 160, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(1435, 455, 50, 70, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(1740, 715, 80, 60, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawMountainRidges(ctx) {
+    // Himalayas
+    ctx.beginPath();
+    ctx.ellipse(1430, 400, 90, 28, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Rockies
+    ctx.beginPath();
+    ctx.ellipse(370, 310, 28, 120, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    // Andes
+    ctx.beginPath();
+    ctx.ellipse(580, 680, 22, 170, -0.18, 0, Math.PI * 2);
+    ctx.fill();
+    // Alps
+    ctx.beginPath();
+    ctx.ellipse(1130, 290, 45, 20, 0.15, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -392,7 +715,7 @@ export default function GlobeRiskMap({
     );
   };
 
-  // Update Globe Orientation to Face Target Location
+  // Update Globe Orientation to Face Target Location & Render 3D Holographic Beacon
   const updateGlobeTargetRotation = (lat, lng) => {
     if (!threeStateRef.current) return;
     const targetX = (lat * Math.PI) / 180;
@@ -401,7 +724,7 @@ export default function GlobeRiskMap({
     threeStateRef.current.targetRotation.x = targetX;
     threeStateRef.current.targetRotation.y = targetY;
 
-    // Rebuild 3D Beacon marker on the Globe
+    // Rebuild 3D Holographic Beacon marker on the Globe
     const beaconGroup = threeStateRef.current.beaconGroup;
     if (beaconGroup) {
       // Clear old markers
@@ -413,20 +736,20 @@ export default function GlobeRiskMap({
       const radius = 95.5;
       const pos = latLngToVector3(lat, lng, radius);
 
-      // 1. Glowing Center Pin Core
-      const pinGeo = new THREE.SphereGeometry(2.0, 16, 16);
+      // 1. Glowing Center Pin Core at Surface
+      const pinGeo = new THREE.SphereGeometry(2.2, 16, 16);
       const pinMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
       const pinMesh = new THREE.Mesh(pinGeo, pinMat);
       pinMesh.position.copy(pos);
       beaconGroup.add(pinMesh);
 
-      // 2. Pulsing Outer Target Ring
-      const ringGeo = new THREE.RingGeometry(2.8, 4.4, 32);
+      // 2. Pulsing Outer Target Ring on Surface
+      const ringGeo = new THREE.RingGeometry(3.0, 4.8, 32);
       const ringMat = new THREE.MeshBasicMaterial({
         color: 0xef4444,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.85
       });
       const ringMesh = new THREE.Mesh(ringGeo, ringMat);
       ringMesh.name = 'beaconRing';
@@ -434,18 +757,32 @@ export default function GlobeRiskMap({
       ringMesh.lookAt(new THREE.Vector3(0, 0, 0));
       beaconGroup.add(ringMesh);
 
-      // 3. Vertical laser pillar beam
-      const beamGeo = new THREE.CylinderGeometry(0.35, 0.35, 24, 8);
+      // 3. Volumetric 3D Laser Pillar Beam rising high into space
+      const beamHeight = 28;
+      const beamGeo = new THREE.CylinderGeometry(0.4, 0.4, beamHeight, 8);
       const beamMat = new THREE.MeshBasicMaterial({
         color: 0x38bdf8,
         transparent: true,
         opacity: 0.75
       });
       const beamMesh = new THREE.Mesh(beamGeo, beamMat);
-      const beamPos = pos.clone().multiplyScalar(1.08);
+      const normal = pos.clone().normalize();
+      const beamPos = pos.clone().add(normal.clone().multiplyScalar(beamHeight / 2));
       beamMesh.position.copy(beamPos);
-      beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize());
+      beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
       beaconGroup.add(beamMesh);
+
+      // 4. Floating 3D Rotating Crystal / Diamond at Beacon Top
+      const crystalGeo = new THREE.OctahedronGeometry(2.4, 0);
+      const crystalMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        wireframe: true
+      });
+      const crystalMesh = new THREE.Mesh(crystalGeo, crystalMat);
+      crystalMesh.name = 'beaconCrystal';
+      const crystalPos = pos.clone().add(normal.clone().multiplyScalar(beamHeight + 3.0));
+      crystalMesh.position.copy(crystalPos);
+      beaconGroup.add(crystalMesh);
     }
   };
 
@@ -1069,10 +1406,10 @@ export default function GlobeRiskMap({
                     width: `${prediction.probability}%`,
                     background:
                       prediction.probability >= 70
-                        ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                        ? '#ef4444'
                         : prediction.probability >= 40
-                        ? 'linear-gradient(90deg, #eab308, #f97316)'
-                        : 'linear-gradient(90deg, #10b981, #22c55e)'
+                        ? '#f59e0b'
+                        : '#10b981'
                   }}
                 />
               </div>

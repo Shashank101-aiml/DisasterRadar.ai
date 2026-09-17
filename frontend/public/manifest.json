@@ -1,0 +1,24 @@
+{
+  "name": "DisasterRadar.ai - Flood Risk & Evacuation",
+  "short_name": "DisasterRadar",
+  "description": "AI-Powered Flood Risk Prediction, Satellite Road Blockage Mapping & Offline Evacuation Guidance",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080c16",
+  "theme_color": "#080c16",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/vite.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

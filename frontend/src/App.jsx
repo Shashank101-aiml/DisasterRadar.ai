@@ -16,6 +16,9 @@ import AboutProjectView from './components/AboutProjectView';
 import ModelPerformanceView from './components/ModelPerformanceView';
 import PredictRiskView from './components/PredictRiskView';
 import AiExplainerView from './components/AiExplainerView';
+import SplineAiGuardian from './components/SplineAiGuardian';
+import EvacuationRouteView from './components/EvacuationRouteView';
+import InstallAppModal from './components/InstallAppModal';
 
 import {
   predictFloodRisk,
@@ -28,6 +31,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [modalState, setModalState] = useState({ isOpen: false, type: null });
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
   // Active Geographic Zone for Risk Map and Location-Specific History
   const [activeLocation, setActiveLocation] = useState({
@@ -87,6 +91,27 @@ export default function App() {
       setStations(stationList);
       setModelMetrics(perfData);
       setRecentPredictions(recentData);
+
+      // Initialize dashboard with the first live station (e.g. Mira Bhayandar)
+      if (stationList && stationList.length > 0) {
+        const topStation = stationList[0];
+        const liveParams = {
+          rainfall24h: topStation.r24,
+          rainfall72h: topStation.r72,
+          temperature: topStation.temp,
+          humidity: topStation.hum,
+          windSpeed: 14,
+          pressure: 1008,
+          elevation: topStation.elev,
+          latitude: topStation.lat,
+          longitude: topStation.lng,
+          location: `${topStation.name}, India`
+        };
+        setParams(liveParams);
+        predictFloodRisk(liveParams).then(res => {
+          if (res) setPrediction(res);
+        }).catch(() => {});
+      }
     }
     loadData();
   }, []);
@@ -209,6 +234,7 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
         onOpenModal={(type) => setModalState({ isOpen: true, type })}
+        onDownloadApp={() => setIsDownloadModalOpen(true)}
       />
 
       {/* MAIN WRAPPER */}
@@ -217,6 +243,7 @@ export default function App() {
           onToggleSidebar={() => setSidebarOpen(prev => !prev)}
           onOpenAlerts={() => setActiveTab('alerts')}
           onOpenProfile={() => setActiveTab('about')}
+          onDownloadApp={() => setIsDownloadModalOpen(true)}
         />
 
         {activeTab === 'map' ? (
@@ -227,6 +254,13 @@ export default function App() {
             activeLocation={activeLocation}
             onLocationChange={setActiveLocation}
             onOpenHistoryModal={() => setActiveTab('historical')}
+          />
+        ) : activeTab === 'evacuation' ? (
+          /* SATELLITE ROAD BLOCKAGE & OFFLINE EVACUATION NAVIGATOR */
+          <EvacuationRouteView
+            onBackToDashboard={() => setActiveTab('dashboard')}
+            activeLocation={activeLocation}
+            onDownloadApp={() => setIsDownloadModalOpen(true)}
           />
         ) : activeTab === 'predict' ? (
           /* FULL-PAGE PRODUCTION PREDICT RISK STUDIO */
@@ -287,6 +321,47 @@ export default function App() {
           /* STANDARD DASHBOARD VIEW */
 
           <div className="dashboard-content">
+            {/* HERO DISASTER RADAR & ANTHROPOMORPHIC 3D AI RESCUE GUARDIAN */}
+            <section className="command-hero-section">
+              <div className="command-hero-left">
+                <div className="hero-eyebrow">
+                  <span className="live-pulsing-dot" />
+                  <span>SATELLITE METEOROLOGICAL INTELLIGENCE</span>
+                </div>
+                <h2 className="hero-main-title">
+                  Predict Flood Risk <span style={{ color: '#38bdf8' }}>Before It Becomes a Disaster.</span>
+                </h2>
+                <p className="hero-description">
+                  Real-time meteorological, topographical and environmental intelligence powered by calibrated machine learning. Ingesting live Open-Meteo & Copernicus global satellite telemetry.
+                </p>
+                <div className="hero-cta-group">
+                  <button className="primary-cta-btn" onClick={() => handleSelectTab('predict')}>
+                    <span>⚡ Predict Risk Studio</span>
+                  </button>
+                  <button className="secondary-cta-btn" onClick={() => handleSelectTab('map')}>
+                    <span>🌐 3D World Globe & GIS</span>
+                  </button>
+                  <button className="secondary-cta-btn" onClick={() => handleSelectTab('evacuation')} style={{ borderColor: 'rgba(16, 185, 129, 0.4)', color: '#10b981' }}>
+                    <span>🛡️ Offline Evacuation & Roads</span>
+                  </button>
+                </div>
+                <div className="hero-features-strip">
+                  <span>✓ 15 Hydrological Features</span>
+                  <span>✓ Native XGBoost (T*=0.55)</span>
+                  <span>✓ 100% Dynamic Open-Meteo</span>
+                </div>
+              </div>
+              <div className="command-hero-right">
+                <SplineAiGuardian
+                  probability={prediction.probability}
+                  riskLevel={prediction.riskLevel}
+                  rainfall24h={params.rainfall24h}
+                  elevation={params.elevation}
+                  location={params.location}
+                />
+              </div>
+            </section>
+
             {/* TOP 4 METRICS CARDS */}
             <TopMetrics
               probability={prediction.probability}
@@ -351,6 +426,12 @@ export default function App() {
           if (newParams) setParams(newParams);
           if (newPred) setPrediction(newPred);
         }}
+      />
+
+      {/* DEDICATED PWA & MOBILE/PC APP INSTALLATION MODAL */}
+      <InstallAppModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
       />
 
     </div>

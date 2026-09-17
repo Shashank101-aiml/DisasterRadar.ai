@@ -138,16 +138,15 @@ export default function PredictRiskView({
         rainfall24h: 80,
         rainfall72h: 140,
         pressure: 996,
-        ndwi: 0.38
+        ndwi: 0.48
       };
     } else if (scenarioKey === 'dry') {
       newParams = {
         ...newParams,
-        rainfall24h: 2,
-        rainfall72h: 5,
+        rainfall24h: 5,
+        rainfall72h: 12,
         humidity: 45,
-        temperature: 32,
-        ndwi: -0.15
+        ndwi: -0.2
       };
     }
 
@@ -155,13 +154,12 @@ export default function PredictRiskView({
     handleRunPrediction(newParams);
   };
 
-  // Water depth calculation
-  const prob = prediction ? prediction.probability : 2.5;
+  const prob = prediction ? Number(prediction.probability) : 78.4;
   const isBreached = prob >= 50.0;
   const estDepthMeters = prob > 50 ? ((prob - 50) * 0.038).toFixed(2) : '0.05';
 
   return (
-    <div className="predict-risk-page-container" style={{ padding: '24px 32px', color: '#1e293b' }}>
+    <div className="predict-risk-page-container" style={{ padding: '24px 32px', color: '#f8fafc', background: '#060911', minHeight: '100vh' }}>
       {/* HEADER & BREADCRUMB */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
         <div>
@@ -169,13 +167,13 @@ export default function PredictRiskView({
             <button
               onClick={onBackToDashboard}
               style={{
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
+                background: '#0f172a',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
                 borderRadius: '6px',
                 padding: '5px 12px',
                 fontSize: '0.8rem',
                 fontWeight: 600,
-                color: '#475569',
+                color: '#38bdf8',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -184,16 +182,16 @@ export default function PredictRiskView({
             >
               ← Back to Dashboard
             </button>
-            <span style={{ color: '#94a3b8' }}>/</span>
-            <span style={{ fontSize: '0.84rem', color: '#64748b', fontWeight: 500 }}>Operational Forecasting</span>
-            <span style={{ color: '#94a3b8' }}>/</span>
-            <span style={{ fontSize: '0.84rem', color: '#0284c7', fontWeight: 600 }}>Predict Risk Studio</span>
+            <span style={{ color: '#64748b' }}>/</span>
+            <span style={{ fontSize: '0.84rem', color: '#94a3b8', fontWeight: 500 }}>Operational Forecasting</span>
+            <span style={{ color: '#64748b' }}>/</span>
+            <span style={{ fontSize: '0.84rem', color: '#38bdf8', fontWeight: 600 }}>Predict Risk Studio</span>
           </div>
 
-          <h2 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+          <h2 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>
             🛰️ Production Flood Inundation Prediction Studio
           </h2>
-          <div style={{ fontSize: '0.86rem', color: '#64748b', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.86rem', color: '#94a3b8', marginTop: '4px' }}>
             High-precision XGBoost inference engine with live satellite telemetry auto-fetch, scenario stress testing, and civic alert scoring
           </div>
         </div>
@@ -203,15 +201,14 @@ export default function PredictRiskView({
             onClick={() => handleRunPrediction()}
             disabled={isLoading}
             style={{
-              background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+              backgroundColor: '#0284c7',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
-              padding: '8px 18px',
+              padding: '9px 20px',
               fontSize: '0.86rem',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)',
               display: 'flex',
               alignItems: 'center',
               gap: '6px'
@@ -224,21 +221,21 @@ export default function PredictRiskView({
 
       {/* TOP GLOBAL LOCATION BAR */}
       <div style={{
-        background: '#ffffff',
-        border: '1px solid #e2e8f0',
+        background: '#0b1120',
+        border: '1px solid rgba(56, 189, 248, 0.18)',
         borderRadius: '14px',
         padding: '16px 20px',
         marginBottom: '24px',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+        boxShadow: '0 8px 30px rgba(0,0,0,0.5)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '1.4rem' }}>📍</span>
             <div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
                 {params.location}
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+              <div style={{ fontSize: '0.78rem', color: '#38bdf8', fontFamily: 'JetBrains Mono, monospace' }}>
                 Lat: {Number(params.latitude).toFixed(3)}° | Lon: {Number(params.longitude).toFixed(3)}° | Elevation: {params.elevation}m
               </div>
             </div>
@@ -251,9 +248,9 @@ export default function PredictRiskView({
                 key={c.name}
                 onClick={() => handleSelectLocation(c)}
                 style={{
-                  background: params.location.includes(c.name) ? '#0284c7' : '#f8fafc',
-                  color: params.location.includes(c.name) ? '#ffffff' : '#334155',
-                  border: '1px solid #cbd5e1',
+                  background: params.location.includes(c.name) ? '#0284c7' : '#0f172a',
+                  color: params.location.includes(c.name) ? '#ffffff' : '#cbd5e1',
+                  border: '1px solid rgba(56, 189, 248, 0.22)',
                   borderRadius: '16px',
                   padding: '4px 10px',
                   fontSize: '0.76rem',
@@ -279,7 +276,9 @@ export default function PredictRiskView({
                 flex: 1,
                 padding: '9px 14px',
                 borderRadius: '8px',
-                border: '1px solid #cbd5e1',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                background: '#0f172a',
+                color: '#f8fafc',
                 fontSize: '0.84rem'
               }}
             />
@@ -287,8 +286,9 @@ export default function PredictRiskView({
               <button
                 onClick={() => setLocationQuery('')}
                 style={{
-                  background: '#f1f5f9',
-                  border: '1px solid #cbd5e1',
+                  background: '#0f172a',
+                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  color: '#94a3b8',
                   borderRadius: '6px',
                   padding: '0 12px',
                   fontSize: '0.8rem',
@@ -307,11 +307,11 @@ export default function PredictRiskView({
               top: '100%',
               left: 0,
               right: 0,
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
+              background: '#0b1120',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
               borderRadius: '8px',
               marginTop: '4px',
-              boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
               zIndex: 30,
               maxHeight: '220px',
               overflowY: 'auto'
@@ -322,15 +322,15 @@ export default function PredictRiskView({
                   onClick={() => handleSelectLocation(r)}
                   style={{
                     padding: '10px 14px',
-                    borderBottom: '1px solid #f1f5f9',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
                     cursor: 'pointer',
                     fontSize: '0.82rem',
-                    color: '#334155'
+                    color: '#cbd5e1'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#111a2d'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#0b1120'}
                 >
-                  <strong>{r.name}</strong>, {r.state ? `${r.state}, ` : ''}{r.country} ({r.lat.toFixed(2)}°, {r.lng.toFixed(2)}°)
+                  <strong style={{ color: '#f8fafc' }}>{r.name}</strong>, {r.state ? `${r.state}, ` : ''}{r.country} ({r.lat.toFixed(2)}°, {r.lng.toFixed(2)}°)
                 </div>
               ))}
             </div>
@@ -341,10 +341,10 @@ export default function PredictRiskView({
       {/* TWO COLUMN WORKSTATION GRID */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'start' }}>
         {/* LEFT COLUMN: PARAMETER SLIDERS & SCENARIO CONTROLS */}
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '14px', padding: '24px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
           {/* Stress-Test Scenario Buttons */}
           <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '8px' }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
               Stress-Test Scenarios (1-Click Presets):
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
@@ -358,16 +358,16 @@ export default function PredictRiskView({
                   key={s.key}
                   onClick={() => handleApplyScenario(s.key)}
                   style={{
-                    background: selectedScenario === s.key ? '#f0f9ff' : '#f8fafc',
-                    border: selectedScenario === s.key ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                    background: selectedScenario === s.key ? '#111a2d' : '#0f172a',
+                    border: selectedScenario === s.key ? '1.5px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
                     borderRadius: '8px',
                     padding: '8px 10px',
                     textAlign: 'left',
                     cursor: 'pointer'
                   }}
                 >
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>{s.label}</div>
-                  <div style={{ fontSize: '0.68rem', color: '#64748b' }}>{s.desc}</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc' }}>{s.label}</div>
+                  <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{s.desc}</div>
                 </button>
               ))}
             </div>
@@ -377,9 +377,9 @@ export default function PredictRiskView({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* 24h Rain */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>
                 <span>🌧️ 24-Hour Acute Rainfall</span>
-                <span style={{ color: params.rainfall24h > 100 ? '#dc2626' : '#0284c7' }}>{params.rainfall24h} mm</span>
+                <span style={{ color: params.rainfall24h > 100 ? '#ef4444' : '#38bdf8' }}>{params.rainfall24h} mm</span>
               </div>
               <input
                 type="range"
@@ -393,18 +393,18 @@ export default function PredictRiskView({
                 }}
                 style={{ width: '100%', accentColor: '#0284c7' }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#94a3b8' }}>
-                <span>0 mm (Dry)</span>
-                <span>75 mm (Moderate)</span>
-                <span>150+ mm (Severe Cloudburst)</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
+                <span>0 mm</span>
+                <span>80 mm (Critical Municipal Sump Threshold)</span>
+                <span>250 mm (Extreme Cloudburst)</span>
               </div>
             </div>
 
             {/* 72h Rain */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>
                 <span>🌧️ 72-Hour Cumulative Rainfall</span>
-                <span style={{ color: params.rainfall72h > 180 ? '#dc2626' : '#0284c7' }}>{params.rainfall72h} mm</span>
+                <span style={{ color: params.rainfall72h > 180 ? '#ef4444' : '#38bdf8' }}>{params.rainfall72h} mm</span>
               </div>
               <input
                 type="range"
@@ -418,7 +418,7 @@ export default function PredictRiskView({
                 }}
                 style={{ width: '100%', accentColor: '#0284c7' }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
                 <span>0 mm</span>
                 <span>150 mm (Ground Saturated)</span>
                 <span>300+ mm (Catastrophic)</span>
@@ -427,9 +427,9 @@ export default function PredictRiskView({
 
             {/* Elevation */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>
                 <span>⛰️ Digital Elevation (DEM)</span>
-                <span style={{ color: params.elevation < 15 ? '#dc2626' : '#059669' }}>{params.elevation} meters</span>
+                <span style={{ color: params.elevation < 15 ? '#ef4444' : '#10b981' }}>{params.elevation} meters</span>
               </div>
               <input
                 type="range"
@@ -441,9 +441,9 @@ export default function PredictRiskView({
                   setParams(updated);
                   handleRunPrediction(updated);
                 }}
-                style={{ width: '100%', accentColor: '#059669' }}
+                style={{ width: '100%', accentColor: '#10b981' }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
                 <span>1 m (Vulnerable Sump)</span>
                 <span>50 m</span>
                 <span>300 m (High Ground)</span>
@@ -453,7 +453,7 @@ export default function PredictRiskView({
             {/* Humidity & Temperature */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '4px' }}>
                   <span>💧 Humidity</span>
                   <span>{params.humidity}%</span>
                 </div>
@@ -472,7 +472,7 @@ export default function PredictRiskView({
               </div>
 
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: '#cbd5e1', marginBottom: '4px' }}>
                   <span>🌡️ Temperature</span>
                   <span>{params.temperature}°C</span>
                 </div>
@@ -497,21 +497,21 @@ export default function PredictRiskView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Main Risk Score Card */}
           <div style={{
-            background: '#ffffff',
-            border: isBreached ? '2px solid #f87171' : '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: isBreached ? '2px solid #ef4444' : '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '14px',
             padding: '24px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
             position: 'relative'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
                 AI Flood Risk Assessment
               </span>
               <span style={{
-                background: isBreached ? '#fee2e2' : '#dcfce7',
-                color: isBreached ? '#b91c1c' : '#15803d',
-                border: isBreached ? '1px solid #fca5a5' : '1px solid #86efac',
+                background: isBreached ? 'rgba(239, 68, 68, 0.16)' : 'rgba(16, 185, 129, 0.16)',
+                color: isBreached ? '#ef4444' : '#10b981',
+                border: isBreached ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(16, 185, 129, 0.4)',
                 padding: '4px 12px',
                 borderRadius: '16px',
                 fontSize: '0.78rem',
@@ -523,57 +523,57 @@ export default function PredictRiskView({
 
             {/* Big Probability Number & Meter */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '3.2rem', fontWeight: 900, color: isBreached ? '#dc2626' : '#16a34a', lineHeight: 1 }}>
+              <span style={{ fontSize: '3.2rem', fontWeight: 900, color: isBreached ? '#ef4444' : '#10b981', lineHeight: 1 }}>
                 {prob}%
               </span>
-              <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>
+              <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 600 }}>
                 Inundation Probability
               </span>
             </div>
 
-            {/* Threshold Bar */}
-            <div style={{ width: '100%', height: '10px', background: '#e2e8f0', borderRadius: '5px', overflow: 'hidden', position: 'relative', marginBottom: '14px' }}>
+            {/* Threshold Bar with Solid Single Color */}
+            <div style={{ width: '100%', height: '10px', background: '#1e293b', borderRadius: '5px', overflow: 'hidden', position: 'relative', marginBottom: '14px' }}>
               <div style={{
                 width: `${prob}%`,
                 height: '100%',
-                background: isBreached ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : 'linear-gradient(90deg, #10b981, #059669)'
+                backgroundColor: isBreached ? '#ef4444' : '#10b981'
               }}></div>
               {/* 50% Threshold Mark */}
-              <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', background: '#0f172a' }}></div>
+              <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', background: '#ffffff' }}></div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#64748b', marginBottom: '16px' }}>
               <span>0% Safe</span>
-              <span style={{ fontWeight: 700, color: '#0f172a' }}>▲ 50% Danger Line</span>
+              <span style={{ fontWeight: 700, color: '#f8fafc' }}>▲ 50% Danger Line</span>
               <span>100% Catastrophic</span>
             </div>
 
             {/* 3 Metrics Row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Est. Water Depth</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+              <div style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Est. Water Depth</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
                   {isBreached ? `${estDepthMeters} m` : '< 0.15 m'}
                 </div>
               </div>
 
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Evacuation Window</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0284c7' }}>
+              <div style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Evacuation Window</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#38bdf8' }}>
                   {isBreached ? '2 - 4 Hours' : 'Standby'}
                 </div>
               </div>
 
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Model Confidence</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#16a34a' }}>96.8%</div>
+              <div style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Model Confidence</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>96.8%</div>
               </div>
             </div>
           </div>
 
           {/* Top Risk Contributors for this prediction */}
-          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', margin: '0 0 12px 0' }}>
+          <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '14px', padding: '20px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#f8fafc', margin: '0 0 12px 0' }}>
               Key Environmental Risk Factors
             </h4>
 
@@ -582,15 +582,15 @@ export default function PredictRiskView({
                 { name: 'Rainfall (72h)', value: 31, color: '#ef4444' },
                 { name: 'Rainfall (24h)', value: 22, color: '#f97316' },
                 { name: 'Elevation Vulnerability', value: 18, color: '#eab308' },
-                { name: 'Relative Humidity', value: 12, color: '#3b82f6' }
+                { name: 'Relative Humidity', value: 12, color: '#06b6d4' }
               ]).map((rf, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                  <span style={{ color: '#475569', fontWeight: 600 }}>{rf.name}</span>
+                  <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{rf.name}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '50%' }}>
-                    <div style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${rf.value * 2.5}%`, height: '100%', background: rf.color }}></div>
+                    <div style={{ flex: 1, height: '6px', background: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: `${rf.value * 2.5}%`, height: '100%', backgroundColor: rf.color || '#38bdf8' }}></div>
                     </div>
-                    <span style={{ width: '32px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{rf.value}%</span>
+                    <span style={{ width: '32px', textAlign: 'right', fontWeight: 700, color: '#f8fafc' }}>{rf.value}%</span>
                   </div>
                 </div>
               ))}
@@ -599,15 +599,15 @@ export default function PredictRiskView({
 
           {/* Civic Recommendation */}
           <div style={{
-            background: isBreached ? '#fef2f2' : '#f0fdf4',
-            border: isBreached ? '1px solid #fecaca' : '1px solid #bbf7d0',
+            background: isBreached ? 'rgba(239, 68, 68, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+            border: isBreached ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
             borderRadius: '12px',
             padding: '16px'
           }}>
-            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: isBreached ? '#991b1b' : '#166534', marginBottom: '4px' }}>
+            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: isBreached ? '#ef4444' : '#10b981', marginBottom: '4px' }}>
               {isBreached ? '🚨 Emergency Directives for Municipal Authorities:' : '✅ Normal Operational Advisory:'}
             </div>
-            <div style={{ fontSize: '0.8rem', color: isBreached ? '#7f1d1d' : '#14532d', lineHeight: 1.4 }}>
+            <div style={{ fontSize: '0.8rem', color: '#e2e8f0', lineHeight: 1.4 }}>
               {prediction?.recommendation || (isBreached 
                 ? 'Issue immediate evacuation directives for ground floor residents in basin zones. Deploy high-capacity municipal de-watering pumps to storm sluices.'
                 : 'Environmental parameters safe. Continue routine hydrologic monitoring.'
