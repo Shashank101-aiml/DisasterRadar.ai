@@ -65,7 +65,9 @@ class Settings:
     # Database & ML Paths
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./disaster_history.db")
     XGB_MODEL_PATH: str = os.getenv("XGB_MODEL_PATH", str(ROOT_DIR / "models" / "flood_model.json"))
+    RF_MODEL_PATH: str = os.getenv("RF_MODEL_PATH", str(ROOT_DIR / "models" / "random_forest_model.json"))
     METRICS_PATH: str = os.getenv("METRICS_PATH", str(ROOT_DIR / "models" / "metrics.json"))
+    RF_METRICS_PATH: str = os.getenv("RF_METRICS_PATH", str(ROOT_DIR / "models" / "random_forest_metrics.json"))
     DECISION_THRESHOLD: float = float(os.getenv("DECISION_THRESHOLD", 0.55))
 
     def get_api_status(self) -> dict:

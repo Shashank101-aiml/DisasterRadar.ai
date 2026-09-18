@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { geocodeLocation, fetchGlobalLiveTelemetry, predictFloodRisk } from '../services/api';
+import { geocodeLocation, fetchGlobalLiveTelemetry, predictFloodRisk, compareModelPredictions } from '../services/api';
 
 export default function PredictRiskView({
   currentLocation,
@@ -29,6 +29,9 @@ export default function PredictRiskView({
   const [prediction, setPrediction] = useState(initialPrediction || null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState('custom');
+  const [modelComparison, setModelComparison] = useState(null);
+  const [isComparing, setIsComparing] = useState(false);
+  const [compareError, setCompareError] = useState(null);
 
   // Quick 1-click Preset Cities
   const presetCities = [
@@ -91,6 +94,8 @@ export default function PredictRiskView({
   // Run ML model prediction
   const handleRunPrediction = async (currentParams = params, loc = null) => {
     setIsLoading(true);
+    setModelComparison(null);
+    setCompareError(null);
     try {
       const res = await predictFloodRisk(currentParams);
       setPrediction(res);
@@ -105,6 +110,21 @@ export default function PredictRiskView({
       console.error('Prediction failed:', e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Run the same telemetry through XGBoost and Random Forest side by side
+  const handleCompareModels = async () => {
+    setIsComparing(true);
+    setCompareError(null);
+    try {
+      const res = await compareModelPredictions(params);
+      setModelComparison(res);
+    } catch (e) {
+      console.error('Model comparison failed:', e);
+      setCompareError('Model comparison is unavailable right now.');
+    } finally {
+      setIsComparing(false);
     }
   };
 
@@ -595,6 +615,69 @@ export default function PredictRiskView({
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Model Comparison: XGBoost vs Random Forest */}
+          <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '14px', padding: '20px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: modelComparison || compareError ? '14px' : '0' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>
+                Compare Models
+              </h4>
+              <button
+                onClick={handleCompareModels}
+                disabled={isComparing}
+                style={{
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  color: '#38bdf8',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  cursor: isComparing ? 'default' : 'pointer',
+                  opacity: isComparing ? 0.6 : 1
+                }}
+              >
+                {isComparing ? 'Running...' : 'Run XGBoost vs Random Forest'}
+              </button>
+            </div>
+
+            {compareError && (
+              <div style={{ fontSize: '0.78rem', color: '#f87171' }}>{compareError}</div>
+            )}
+
+            {modelComparison && (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                  {modelComparison.predictions.map((mp) => (
+                    <div key={mp.modelId} style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px' }}>
+                      <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        {mp.modelName}
+                      </div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f8fafc', margin: '4px 0' }}>
+                        {mp.probability}%
+                      </div>
+                      <div style={{
+                        display: 'inline-block',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                        color: mp.riskClass === 'high' ? '#ef4444' : (mp.riskClass === 'moderate' ? '#eab308' : '#10b981'),
+                        background: mp.riskClass === 'high' ? 'rgba(239, 68, 68, 0.15)' : (mp.riskClass === 'moderate' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(16, 185, 129, 0.15)')
+                      }}>
+                        {mp.riskLevel}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
+                  {modelComparison.agreement === 'Consensus'
+                    ? `Both models agree on risk tier (${modelComparison.probabilityDelta} pt spread).`
+                    : `Models diverge by ${modelComparison.probabilityDelta} points — treat with caution and consult the higher-risk output.`}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Civic Recommendation */}

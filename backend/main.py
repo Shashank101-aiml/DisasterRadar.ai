@@ -10,9 +10,13 @@ from models.schemas import (
     StationData,
     ModelMetrics,
     ConfusionMatrix,
-    RecentPrediction
+    RecentPrediction,
+    ModelPrediction,
+    PredictionCompareResponse
 )
 from services.predictor import predict_flood_risk
+from services.rf_predictor import predict_flood_risk_rf
+from services.feature_engineering import build_feature_row
 from services.stations import get_all_stations
 from services.gis_data import get_mira_bhayandar_gis_data
 from services.database import (
@@ -91,23 +95,65 @@ def predict(input_data: PredictionInput):
 
         # 2. Persist to SQLite Database Audit Log
         primary_driver = "general terrain / rainfall saturation"
-        if result.keyDrivers and len(result.keyDrivers) > 0:
-            top_d = result.keyDrivers[0]
-            primary_driver = f"{top_d.feature} ({top_d.impact:+0.2f})"
-            
+        if result.riskFactors:
+            top_factor = result.riskFactors[0]
+            primary_driver = f"{top_factor.name} ({top_factor.value}%)"
+
         log_prediction(
             location=input_data.location or "Custom Point",
             rainfall_24h=float(input_data.rainfall24h),
             rainfall_72h=float(input_data.rainfall72h),
             elevation=float(input_data.elevation),
-            drainage_capacity=float(input_data.drainageCapacity),
+            drainage_capacity=build_feature_row(input_data)['drainage_capacity'],
             probability=float(result.probability),
             risk_level=result.riskLevel,
             primary_driver=primary_driver,
-            advisory=result.advisory
+            advisory=result.recommendation
         )
 
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/predict/compare", response_model=PredictionCompareResponse)
+def predict_compare(input_data: PredictionInput):
+    """
+    Runs the same telemetry through both the production XGBoost classifier and the
+    Random Forest bagging ensemble, so the two can be judged side by side instead of
+    only via their offline benchmark metrics on the Model Performance page.
+    """
+    try:
+        xgb_result = predict_flood_risk(input_data)
+        rf_prob, rf_level, rf_class, rf_recommendation = predict_flood_risk_rf(input_data)
+
+        delta = round(abs(xgb_result.probability - rf_prob), 1)
+        agreement = "Consensus" if xgb_result.riskClass == rf_class else "Divergent"
+
+        return PredictionCompareResponse(
+            location=xgb_result.location,
+            latitude=xgb_result.latitude,
+            longitude=xgb_result.longitude,
+            predictions=[
+                ModelPrediction(
+                    modelId="xgboost",
+                    modelName="XGBoost Classifier",
+                    probability=xgb_result.probability,
+                    riskLevel=xgb_result.riskLevel,
+                    riskClass=xgb_result.riskClass,
+                    recommendation=xgb_result.recommendation
+                ),
+                ModelPrediction(
+                    modelId="random_forest",
+                    modelName="Random Forest Ensemble",
+                    probability=rf_prob,
+                    riskLevel=rf_level,
+                    riskClass=rf_class,
+                    recommendation=rf_recommendation
+                )
+            ],
+            agreement=agreement,
+            probabilityDelta=delta
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

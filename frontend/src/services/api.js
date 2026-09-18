@@ -53,6 +53,18 @@ export async function predictFloodRisk(parameters) {
   }
 }
 
+export async function compareModelPredictions(parameters) {
+  const response = await fetch(`${API_BASE}/predict/compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(parameters)
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return await response.json();
+}
+
 export async function fetchStations() {
   try {
     const response = await fetch(`${API_BASE}/stations`);

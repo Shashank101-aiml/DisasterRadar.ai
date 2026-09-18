@@ -61,3 +61,19 @@ class RecentPrediction(BaseModel):
     location: str
     probability: float
     riskLevel: str
+
+class ModelPrediction(BaseModel):
+    modelId: str
+    modelName: str
+    probability: float
+    riskLevel: str
+    riskClass: str
+    recommendation: str
+
+class PredictionCompareResponse(BaseModel):
+    location: str
+    latitude: float
+    longitude: float
+    predictions: List[ModelPrediction]
+    agreement: str
+    probabilityDelta: float
