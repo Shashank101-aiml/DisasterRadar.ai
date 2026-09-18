@@ -253,6 +253,12 @@ export interface RainfallImpactResponse {
   soil_saturation_pct: number;
 }
 
+export interface PrecautionItem {
+  title: string;
+  action: string;
+  importance: string;
+}
+
 export interface WeeklyReportResponse {
   location: string;
   latitude: number;
@@ -260,8 +266,8 @@ export interface WeeklyReportResponse {
   threshold: number;
   weekly_records: unknown[];
   precautions: {
-    citizens: string[];
-    commuters: string[];
-    municipal_responders: string[];
+    citizens: PrecautionItem[];
+    commuters: PrecautionItem[];
+    municipal_responders: PrecautionItem[];
   };
 }

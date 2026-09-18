@@ -33,6 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: './assets/favicon.png'
   },
+  plugins: ['expo-sharing'],
   extra: {
     apiBaseUrl: API_BASE_URL
   }
