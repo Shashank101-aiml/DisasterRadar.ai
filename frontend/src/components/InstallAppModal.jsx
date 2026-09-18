@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
+// Real, EAS-built sideloadable APK — replaces the old Capacitor-instructions placeholder.
+// Update this after each new build (see mobile/README or `eas build:list` for the latest URL).
+const APK_DOWNLOAD_URL = 'https://expo.dev/accounts/disaster-radar/projects/disasterradar-ai/builds';
+const APK_VERSION_LABEL = 'v1.0.0 (Preview build)';
+
 export default function InstallAppModal({ isOpen, onClose }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [activePlatform, setActivePlatform] = useState('android'); // 'android' | 'pc' | 'ios' | 'apk'
@@ -332,27 +337,64 @@ export default function InstallAppModal({ isOpen, onClose }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <span style={{ padding: '2px 8px', borderRadius: '4px', background: '#7c2d12', color: '#fb923c', fontSize: '0.68rem', fontWeight: 800 }}>
-                  NATIVE ANDROID APK BUILDER
+                  NATIVE ANDROID APK
                 </span>
-                <span style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>Capacitor native Android wrapper</span>
+                <span style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>{APK_VERSION_LABEL} · Built with Expo EAS</span>
               </div>
 
-              <div style={{ background: '#0f172a', padding: '14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '12px' }}>
-                <p style={{ margin: '0 0 8px 0', fontSize: '0.74rem', color: '#cbd5e1' }}>
-                  To compile a standalone <strong>.apk file</strong> for distribution or sideloading onto Android phones without a browser:
-                </p>
-                <div style={{ background: '#080c16', padding: '10px 12px', borderRadius: '4px', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem', color: '#38bdf8', lineHeight: 1.6 }}>
-                  # 1. Build the production offline bundle<br/>
-                  npm run build<br/><br/>
-                  # 2. Add Android Capacitor wrapper<br/>
-                  npx cap add android<br/><br/>
-                  # 3. Open in Android Studio & click "Build APK"<br/>
-                  npx cap open android
+              <a
+                href={APK_DOWNLOAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  background: '#ea580c',
+                  color: '#ffffff',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  fontSize: '0.86rem',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  marginBottom: '14px',
+                  boxShadow: '0 2px 10px rgba(234, 88, 12, 0.35)'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Download DisasterRadar.apk</span>
+              </a>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.76rem' }}>
+                <div style={{ display: 'flex', gap: '10px', background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ background: '#f97316', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>1</span>
+                  <div>
+                    <strong style={{ color: '#f8fafc' }}>Allow Installs from This Source</strong>
+                    <p style={{ margin: '3px 0 0 0', color: '#94a3b8' }}>
+                      Android will prompt to enable <strong>"Install unknown apps"</strong> for your browser the first time — allow it.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ background: '#f97316', color: '#000', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0 }}>2</span>
+                  <div>
+                    <strong style={{ color: '#f8fafc' }}>Open the Downloaded File</strong>
+                    <p style={{ margin: '3px 0 0 0', color: '#94a3b8' }}>
+                      Tap the .apk in your notifications or Downloads folder, then tap <strong>Install</strong>.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                The generated APK can be installed on any Android phone directly, completely bypassing Google Play Store.
+              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '12px' }}>
+                This is a preview build for direct sideloading, bypassing the Google Play Store. It currently connects to a
+                development backend on the same local network — full public availability lands once the backend is
+                deployed to the cloud.
               </div>
             </div>
           )}

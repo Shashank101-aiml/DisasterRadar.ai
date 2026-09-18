@@ -35,6 +35,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: ['expo-sharing'],
   extra: {
-    apiBaseUrl: API_BASE_URL
-  }
+    apiBaseUrl: API_BASE_URL,
+    eas: {
+      projectId: '1f3f2911-89de-421a-8be8-262becd6cb31'
+    }
+  },
+  owner: 'disaster-radar'
 });
