@@ -1,0 +1,38 @@
+# Fly.io app configuration for the DisasterRadar.ai FastAPI backend.
+# Deploy from the repo root (D:\DisasterRadar) so the Dockerfile's build context
+# includes both backend/ and the sibling models/ directory.
+#
+# Before first deploy:
+#   flyctl auth login
+#   flyctl launch --no-deploy --copy-config --name <your-unique-app-name>
+#   flyctl volumes create disasterradar_data --region <your-region> --size 1
+#   flyctl deploy
+
+app = "disasterradar-api"          # must be globally unique on Fly.io — change if taken
+primary_region = "iad"             # change to a region near you
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  DB_DIR = "/data"
+  DEBUG = "False"
+  APP_PORT = "8000"
+
+[mounts]
+  source = "disasterradar_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/api/health"
+  timeout = "5s"

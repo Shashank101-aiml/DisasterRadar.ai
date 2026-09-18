@@ -53,11 +53,13 @@ app = FastAPI(
 def on_startup():
     init_database()
 
-# Enable CORS for frontend
+# Enable CORS for frontend/mobile clients.
+# allow_origins=["*"] with allow_credentials=True is an invalid combination (the API
+# has no cookie/session auth, so credentials mode buys nothing) — credentials disabled.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -503,5 +505,10 @@ def get_weekly_reports(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=settings.APP_PORT,
+        reload=settings.DEBUG
+    )
 

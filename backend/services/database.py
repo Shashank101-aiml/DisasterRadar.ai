@@ -12,7 +12,10 @@ import sqlite3
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-DB_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# DB_DIR defaults to the backend/ folder for local dev. In production it should be
+# overridden (e.g. DB_DIR=/data) to point at a mounted persistent volume, since the
+# app's own source directory is not a safe place to mount one over.
+DB_DIR = os.getenv("DB_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DB_PATH = os.path.join(DB_DIR, "disaster_history.db")
 
 def get_db_connection() -> sqlite3.Connection:
