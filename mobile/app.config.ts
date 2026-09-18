@@ -33,7 +33,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: './assets/favicon.png'
   },
-  plugins: ['expo-sharing'],
+  plugins: [
+    'expo-sharing',
+    '@maplibre/maplibre-react-native',
+    'expo-sqlite',
+    [
+      'expo-location',
+      {
+        locationAlwaysAndWhenInUsePermission: 'DisasterRadar.ai uses your location to center the evacuation map and compute the nearest safe shelter.'
+      }
+    ]
+  ],
   extra: {
     apiBaseUrl: API_BASE_URL,
     eas: {

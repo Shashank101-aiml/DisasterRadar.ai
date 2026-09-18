@@ -138,12 +138,30 @@ export interface PredictionAuditRow {
   advisory: string;
 }
 
+export interface GisZone {
+  id: string;
+  name: string;
+  riskLevel: string;
+  color: string;
+  fillOpacity: number;
+  floodDepth: string;
+  coordinates: [number, number][];
+}
+
+export interface GisHotspot {
+  name: string;
+  lat: number;
+  lng: number;
+  depth: string;
+  status: string;
+}
+
 export interface MiraBhayandarGisData {
-  metadata: Record<string, unknown>;
-  zones: unknown[];
-  railway: unknown[];
-  roads: unknown[];
-  hotspots: unknown[];
+  metadata: { title: string; location: string; date: string; center: [number, number]; zoom: number };
+  zones: GisZone[];
+  railway: [number, number][];
+  roads: [number, number][][];
+  hotspots: GisHotspot[];
 }
 
 export interface DetailedModelComparisonEntry {
