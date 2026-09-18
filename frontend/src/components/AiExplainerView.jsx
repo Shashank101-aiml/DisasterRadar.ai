@@ -9,12 +9,12 @@ export default function AiExplainerView({
   onOpenMap,
   onOpenPerformance
 }) {
-  const [activeSubTab, setActiveSubTab] = useState('evacuation'); // 'evacuation' | 'compliance' | 'checklist' | 'assistant' | 'hydrodynamics'
+  const [activeSubTab, setActiveSubTab] = useState('evacuation');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechSynth, setSpeechSynth] = useState(null);
 
   // Flood Scenario Selector State
-  const [selectedScenario, setSelectedScenario] = useState('current'); // 'current' | 'flash_flood' | 'riverine_flood' | 'urban_drainage' | 'dam_overflow' | 'coastal_surge'
+  const [selectedScenario, setSelectedScenario] = useState('current');
   
   // Flood Checklist State
   const [checkedItems, setCheckedItems] = useState({
@@ -309,7 +309,7 @@ export default function AiExplainerView({
   ];
 
   return (
-    <div className="explainer-page-container" style={{ padding: '24px 32px', color: '#1e293b' }}>
+    <div className="explainer-page-container" style={{ padding: '24px 32px', color: '#f8fafc' }}>
       
       {/* TOP HEADER & BREADCRUMB */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
@@ -318,13 +318,13 @@ export default function AiExplainerView({
             <button
               onClick={onBackToDashboard}
               style={{
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
                 borderRadius: '6px',
-                padding: '4px 10px',
+                padding: '5px 12px',
                 fontSize: '0.8rem',
                 fontWeight: 600,
-                color: '#475569',
+                color: '#94a3b8',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -333,33 +333,34 @@ export default function AiExplainerView({
             >
               ← Back to Dashboard
             </button>
-            <span style={{ color: '#94a3b8' }}>/</span>
-            <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Flood Intelligence & Syllabus Audit</span>
+            <span style={{ color: '#475569' }}>/</span>
+            <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 500 }}>Flood Intelligence & Syllabus Audit</span>
           </div>
 
-          <h1 style={{ fontSize: '1.7rem', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h1 style={{ fontSize: '1.7rem', fontWeight: 800, color: '#f8fafc', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '10px', letterSpacing: '-0.02em' }}>
             <span>🌊</span> AI Flood Explainer & Evacuation Intelligence Center
           </h1>
-          <p style={{ margin: 0, color: '#475569', fontSize: '0.92rem' }}>
-            <strong>Project 7: AI-Based Flood Risk Prediction System (CO4 | L6)</strong> — Specialized flood evacuation protocols, asset protection guides, hydrodynamic survival thresholds, and 100% syllabus fulfillment audit.
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.92rem' }}>
+            <strong style={{ color: '#38bdf8' }}>Project 7: AI-Based Flood Risk Prediction System (CO4 | L6)</strong> — Specialized flood evacuation protocols, asset protection guides, hydrodynamic survival thresholds, and 100% syllabus fulfillment audit.
           </p>
         </div>
 
-        {/* TOP STATUS PILLS */}
+        {/* TOP STATUS PILLS (Strictly single solid colors, NO gradient) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <div style={{
-            background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+            background: '#0b1120',
             border: '1px solid #10b981',
             borderRadius: '12px',
             padding: '8px 16px',
             display: 'flex',
             alignItems: 'center',
-            gap: '10px'
+            gap: '10px',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.3)'
           }}>
             <span style={{ fontSize: '1.2rem' }}>🎓</span>
             <div>
-              <div style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Flood Project Compliance</div>
-              <div style={{ fontSize: '0.92rem', color: '#065f46', fontWeight: 800 }}>7 / 7 Flood Deliverables Fulfilled (100%)</div>
+              <div style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Flood Project Compliance</div>
+              <div style={{ fontSize: '0.92rem', color: '#34d399', fontWeight: 800 }}>7 / 7 Flood Deliverables Fulfilled (100%)</div>
             </div>
           </div>
 
@@ -370,18 +371,18 @@ export default function AiExplainerView({
                 : `Project 7: AI-Based Flood Risk Prediction System. All seven curriculum criteria from MODIS flood dataset ingestion, hydrodynamic preprocessing, native XGBoost probabilistic modeling to social flood defense are fully fulfilled with 91.24 percent accuracy.`
             )}
             style={{
-              background: isSpeaking ? '#ef4444' : '#2563eb',
+              background: isSpeaking ? '#ef4444' : '#0284c7',
               color: '#ffffff',
               border: 'none',
               borderRadius: '10px',
-              padding: '9px 16px',
+              padding: '9px 18px',
               fontSize: '0.85rem',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              boxShadow: '0 2px 6px rgba(37,99,235,0.25)',
+              boxShadow: isSpeaking ? '0 2px 8px rgba(239, 68, 68, 0.4)' : '0 2px 8px rgba(2, 132, 199, 0.3)',
               transition: 'all 0.2s'
             }}
           >
@@ -394,7 +395,7 @@ export default function AiExplainerView({
       <div style={{
         display: 'flex',
         gap: '8px',
-        borderBottom: '2px solid #e2e8f0',
+        borderBottom: '1px solid #1e293b',
         marginBottom: '24px',
         overflowX: 'auto',
         paddingBottom: '2px'
@@ -417,10 +418,10 @@ export default function AiExplainerView({
               padding: '10px 18px',
               fontSize: '0.88rem',
               fontWeight: activeSubTab === tab.id ? 700 : 500,
-              color: activeSubTab === tab.id ? '#1e40af' : '#64748b',
-              background: activeSubTab === tab.id ? '#eff6ff' : 'transparent',
+              color: activeSubTab === tab.id ? '#38bdf8' : '#94a3b8',
+              background: activeSubTab === tab.id ? '#0b1120' : 'transparent',
               border: 'none',
-              borderBottom: activeSubTab === tab.id ? '3px solid #2563eb' : '3px solid transparent',
+              borderBottom: activeSubTab === tab.id ? '3px solid #0284c7' : '3px solid transparent',
               borderRadius: '8px 8px 0 0',
               cursor: 'pointer',
               display: 'flex',
@@ -432,8 +433,9 @@ export default function AiExplainerView({
           >
             {tab.label}
             <span style={{
-              background: activeSubTab === tab.id ? '#dbeafe' : '#f1f5f9',
-              color: activeSubTab === tab.id ? '#1e40af' : '#64748b',
+              background: activeSubTab === tab.id ? 'rgba(56, 189, 248, 0.15)' : '#0f172a',
+              color: activeSubTab === tab.id ? '#38bdf8' : '#64748b',
+              border: '1px solid #1e293b',
               padding: '2px 8px',
               borderRadius: '12px',
               fontSize: '0.72rem',
@@ -453,18 +455,18 @@ export default function AiExplainerView({
           
           {/* FLOOD SCENARIO SELECTOR */}
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '20px 24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
                   🌊 Select Flood Scenario & Hydrological Condition
                 </h3>
-                <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '0.82rem' }}>
+                <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.82rem' }}>
                   The AI dynamically adapts evacuation routing, lead time, water depth estimates, and life-safety checklists to the specific flood mechanism.
                 </p>
               </div>
@@ -475,11 +477,11 @@ export default function AiExplainerView({
                     key={key}
                     onClick={() => setSelectedScenario(key)}
                     style={{
-                      padding: '6px 12px',
+                      padding: '6px 14px',
                       borderRadius: '8px',
-                      border: selectedScenario === key ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
-                      background: selectedScenario === key ? '#eff6ff' : '#f8fafc',
-                      color: selectedScenario === key ? '#1e40af' : '#475569',
+                      border: selectedScenario === key ? '1px solid #0284c7' : '1px solid #1e293b',
+                      background: selectedScenario === key ? '#0284c7' : '#0f172a',
+                      color: selectedScenario === key ? '#ffffff' : '#94a3b8',
                       fontSize: '0.8rem',
                       fontWeight: selectedScenario === key ? 700 : 500,
                       cursor: 'pointer',
@@ -494,8 +496,8 @@ export default function AiExplainerView({
 
             {/* FLOOD SCENARIO SUMMARY BANNER */}
             <div style={{
-              background: activeScenarioData.risk === 'CRITICAL' ? '#fef2f2' : activeScenarioData.risk === 'HIGH' ? '#fff7ed' : '#f0fdf4',
-              border: `1px solid ${activeScenarioData.risk === 'CRITICAL' ? '#fecaca' : activeScenarioData.risk === 'HIGH' ? '#fed7aa' : '#bbf7d0'}`,
+              background: activeScenarioData.risk === 'CRITICAL' ? 'rgba(239, 68, 68, 0.15)' : activeScenarioData.risk === 'HIGH' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+              border: `1px solid ${activeScenarioData.risk === 'CRITICAL' ? '#ef4444' : activeScenarioData.risk === 'HIGH' ? '#f97316' : '#10b981'}`,
               borderRadius: '12px',
               padding: '16px 20px',
               display: 'flex',
@@ -507,7 +509,7 @@ export default function AiExplainerView({
               <div style={{ flex: '1 1 380px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                   <span style={{
-                    background: activeScenarioData.risk === 'CRITICAL' ? '#dc2626' : activeScenarioData.risk === 'HIGH' ? '#ea580c' : '#16a34a',
+                    background: activeScenarioData.risk === 'CRITICAL' ? '#ef4444' : activeScenarioData.risk === 'HIGH' ? '#f97316' : '#10b981',
                     color: '#ffffff',
                     padding: '3px 10px',
                     borderRadius: '6px',
@@ -517,21 +519,21 @@ export default function AiExplainerView({
                   }}>
                     {activeScenarioData.risk} FLOOD RISK ({activeScenarioData.prob}%)
                   </span>
-                  <strong style={{ color: '#0f172a', fontSize: '0.98rem' }}>{activeScenarioData.name}</strong>
+                  <strong style={{ color: '#f8fafc', fontSize: '0.98rem' }}>{activeScenarioData.name}</strong>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: '#334155', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.5 }}>
                   {activeScenarioData.summary}
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>WATER DEPTH HAZARD</div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>{activeScenarioData.waterDepthEst}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>WATER DEPTH HAZARD</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#f8fafc' }}>{activeScenarioData.waterDepthEst}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>EVACUATION WINDOW</div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: activeScenarioData.risk === 'CRITICAL' ? '#dc2626' : '#ea580c' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>EVACUATION WINDOW</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: activeScenarioData.risk === 'CRITICAL' ? '#ef4444' : '#f97316' }}>
                     {activeScenarioData.leadTime}
                   </div>
                 </div>
@@ -541,13 +543,13 @@ export default function AiExplainerView({
 
           {/* COMPREHENSIVE FLOOD EVACUATION: "HOW TO EVACUATE THINGS" */}
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>
               📋 Detailed Flood Evacuation Blueprint: What & How to Evacuate
             </h3>
 
@@ -555,139 +557,139 @@ export default function AiExplainerView({
               
               {/* CATEGORY 1: ELECTRONICS & VALUABLES */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
                 borderRadius: '12px',
                 padding: '20px',
-                borderTop: '4px solid #3b82f6'
+                borderTop: '4px solid #0284c7'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase' }}>Assets & Appliances</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase' }}>Assets & Appliances</span>
                   <span style={{ fontSize: '1.3rem' }}>🔌</span>
                 </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
                   1. How to Evacuate Electronics & Home Appliances
                 </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#475569', lineHeight: 1.6 }}>
-                  <li><strong>Cut Main Power Breaker (MCB):</strong> Shut down the main electrical breaker before water reaches wall outlets. Never touch wet switches or plugs.</li>
-                  <li><strong>Elevate Large Appliances:</strong> Move refrigerators, washing machines, and inverter batteries onto sturdy tables, concrete plinths, or to the first floor.</li>
-                  <li><strong>LPG Cylinder Lockdown:</strong> Fasten gas cylinders securely with nylon ropes to high window grilles. Floating cylinders can shear pipes and ignite explosions.</li>
-                  <li><strong>Triple-Bag Documents:</strong> Place property deeds, passports, degrees, and Aadhaar cards in sealed waterproof dry-pouches; carry on your chest pack.</li>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <li><strong style={{ color: '#f8fafc' }}>Cut Main Power Breaker (MCB):</strong> Shut down the main electrical breaker before water reaches wall outlets. Never touch wet switches or plugs.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Elevate Large Appliances:</strong> Move refrigerators, washing machines, and inverter batteries onto sturdy tables, concrete plinths, or to the first floor.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>LPG Cylinder Lockdown:</strong> Fasten gas cylinders securely with nylon ropes to high window grilles. Floating cylinders can shear pipes and ignite explosions.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Triple-Bag Documents:</strong> Place property deeds, passports, degrees, and Aadhaar cards in sealed waterproof dry-pouches; carry on your chest pack.</li>
                 </ul>
               </div>
 
               {/* CATEGORY 2: VEHICLES & TRANSIT */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
                 borderRadius: '12px',
                 padding: '20px',
                 borderTop: '4px solid #f59e0b'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase' }}>Vehicle & Transit Safety</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase' }}>Vehicle & Transit Safety</span>
                   <span style={{ fontSize: '1.3rem' }}>🚗</span>
                 </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
                   2. How to Evacuate Vehicles & Prevent Drowning
                 </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#475569', lineHeight: 1.6 }}>
-                  <li><strong>Relocate to Multi-Level Parking:</strong> Move cars and bikes 12 hours ahead to high flyovers, elevated multi-level parking ramps, or hilltop streets.</li>
-                  <li><strong>"Turn Around, Don't Drown":</strong> 12 inches (30 cm) of water floats cars; engine sucks water through air intake causing total hydrostatic lock.</li>
-                  <li><strong>Never Drive Through Underpasses:</strong> Railway underpasses fill like bathtubs within 10 minutes, hiding 3-meter deep lethal water traps.</li>
-                  <li><strong>Car Stall Escape:</strong> If your car is stalled in water, unbuckle instantly, roll down the window, climb to the roof, and do not attempt to push the car.</li>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <li><strong style={{ color: '#f8fafc' }}>Relocate to Multi-Level Parking:</strong> Move cars and bikes 12 hours ahead to high flyovers, elevated multi-level parking ramps, or hilltop streets.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>"Turn Around, Don't Drown":</strong> 12 inches (30 cm) of water floats cars; engine sucks water through air intake causing total hydrostatic lock.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Never Drive Through Underpasses:</strong> Railway underpasses fill like bathtubs within 10 minutes, hiding 3-meter deep lethal water traps.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Car Stall Escape:</strong> If your car is stalled in water, unbuckle instantly, roll down the window, climb to the roof, and do not attempt to push the car.</li>
                 </ul>
               </div>
 
               {/* CATEGORY 3: FAMILY & VULNERABLE CITIZENS */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
                 borderRadius: '12px',
                 padding: '20px',
                 borderTop: '4px solid #ef4444'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase' }}>Vulnerable Populations</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>Vulnerable Populations</span>
                   <span style={{ fontSize: '1.3rem' }}>👨‍👩‍👧‍👦</span>
                 </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
                   3. Evacuating Elderly, Bedridden & Infants
                 </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#475569', lineHeight: 1.6 }}>
-                  <li><strong>Phase 1 Pre-Evacuation:</strong> Evacuate elderly family members during daylight hours while ground access roads are dry.</li>
-                  <li><strong>14-Day Medication Pack:</strong> Pack insulin, cardiac pills, and blood pressure medications in airtight floatable dry-boxes with written prescriptions.</li>
-                  <li><strong>Portable Medical Oxygen:</strong> Ensure portable oxygen cylinders and battery-operated nebulizers are charged and loaded into transport first.</li>
-                  <li><strong>NDRF Boat Coordination:</strong> Register bedridden citizens with municipal emergency dispatch (112) for priority inflatable boat extraction.</li>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <li><strong style={{ color: '#f8fafc' }}>Phase 1 Pre-Evacuation:</strong> Evacuate elderly family members during daylight hours while ground access roads are dry.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>14-Day Medication Pack:</strong> Pack insulin, cardiac pills, and blood pressure medications in airtight floatable dry-boxes with written prescriptions.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Portable Medical Oxygen:</strong> Ensure portable oxygen cylinders and battery-operated nebulizers are charged and loaded into transport first.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>NDRF Boat Coordination:</strong> Register bedridden citizens with municipal emergency dispatch (112) for priority inflatable boat extraction.</li>
                 </ul>
               </div>
 
               {/* CATEGORY 4: LIVESTOCK & PETS */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
                 borderRadius: '12px',
                 padding: '20px',
                 borderTop: '4px solid #10b981'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase' }}>Livestock & Pets</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>Livestock & Pets</span>
                   <span style={{ fontSize: '1.3rem' }}>🐄</span>
                 </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
                   4. How to Evacuate Cattle, Farm Animals & Pets
                 </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#475569', lineHeight: 1.6 }}>
-                  <li><strong>UNCHAIN CATTLE IMMEDIATELY:</strong> Never leave cows or goats tied in stalls. A tethered cow will drown in 3 feet of water. Unchained cattle naturally swim to high ground.</li>
-                  <li><strong>Move to Earthen Berms:</strong> Lead herds to elevated earthen community flood mounds (Kanti) constructed above the 100-year flood contour.</li>
-                  <li><strong>Elevate Dry Fodder:</strong> Store hay bales and feed on elevated wooden platforms wrapped in tarps to prevent lethal rumen rot.</li>
-                  <li><strong>Domestic Pets:</strong> Transport dogs and cats in rigid carriers with waterproof ID tags, leashes, and 3 days of dry pet food.</li>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <li><strong style={{ color: '#f8fafc' }}>UNCHAIN CATTLE IMMEDIATELY:</strong> Never leave cows or goats tied in stalls. A tethered cow will drown in 3 feet of water. Unchained cattle naturally swim to high ground.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Move to Earthen Berms:</strong> Lead herds to elevated earthen community flood mounds (Kanti) constructed above the 100-year flood contour.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Elevate Dry Fodder:</strong> Store hay bales and feed on elevated wooden platforms wrapped in tarps to prevent lethal rumen rot.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Domestic Pets:</strong> Transport dogs and cats in rigid carriers with waterproof ID tags, leashes, and 3 days of dry pet food.</li>
                 </ul>
               </div>
 
               {/* CATEGORY 5: HOME SEWAGE & DRAIN ISOLATION */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
                 borderRadius: '12px',
                 padding: '20px',
                 borderTop: '4px solid #8b5cf6'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase' }}>Drainage & Siphon Sealing</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#8b5cf6', textTransform: 'uppercase' }}>Drainage & Siphon Sealing</span>
                   <span style={{ fontSize: '1.3rem' }}>🛡️</span>
                 </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
                   5. Preventing Sewer Blackwater Ingress
                 </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#475569', lineHeight: 1.6 }}>
-                  <li><strong>Plug Floor Drains:</strong> Insert mechanical expanding rubber plugs or water-filled heavy bags into ground-floor shower and floor drains.</li>
-                  <li><strong>Sandbag the Toilet:</strong> Line the toilet bowl with heavy plastic, close lid, and place a 25 kg sandbag on top to block pressurized sewer backsurge.</li>
-                  <li><strong>Pyramid Sandbagging:</strong> Stack sandbags against entry doors in a 1:3 pyramid ratio (base 3 sandbags wide, height 1 bag).</li>
-                  <li><strong>Exterior Non-Return Valves:</strong> Check that municipal sewer connection inspection chambers have functioning flap valves.</li>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <li><strong style={{ color: '#f8fafc' }}>Plug Floor Drains:</strong> Insert mechanical expanding rubber plugs or water-filled heavy bags into ground-floor shower and floor drains.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Sandbag the Toilet:</strong> Line the toilet bowl with heavy plastic, close lid, and place a 25 kg sandbag on top to block pressurized sewer backsurge.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Pyramid Sandbagging:</strong> Stack sandbags against entry doors in a 1:3 pyramid ratio (base 3 sandbags wide, height 1 bag).</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Exterior Non-Return Valves:</strong> Check that municipal sewer connection inspection chambers have functioning flap valves.</li>
                 </ul>
               </div>
 
               {/* CATEGORY 6: POST-FLOOD RE-ENTRY */}
               <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
                 borderRadius: '12px',
                 padding: '20px',
                 borderTop: '4px solid #06b6d4'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0891b2', textTransform: 'uppercase' }}>Post-Flood Protocol</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#06b6d4', textTransform: 'uppercase' }}>Post-Flood Protocol</span>
                   <span style={{ fontSize: '1.3rem' }}>🔄</span>
                 </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
                   6. Safe Re-Entry & Decontamination
                 </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#475569', lineHeight: 1.6 }}>
-                  <li><strong>Wait for Civil Defense "All-Clear":</strong> Do not re-enter flood-damaged buildings until engineers certify structural foundations.</li>
-                  <li><strong>Zero Flames / Matches:</strong> Inspect for ruptured gas pipes. Ventilate the home thoroughly before flipping any electrical switch.</li>
-                  <li><strong>Boil Water Advisory:</strong> Tap water is contaminated with raw sewage and pathogens. Boil water vigorously for 3 minutes before drinking.</li>
-                  <li><strong>Silt Sanitization:</strong> Wear thick rubber boots. Disinfect all mud-soaked walls and floors with a 1:10 household bleach solution.</li>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <li><strong style={{ color: '#f8fafc' }}>Wait for Civil Defense "All-Clear":</strong> Do not re-enter flood-damaged buildings until engineers certify structural foundations.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Zero Flames / Matches:</strong> Inspect for ruptured gas pipes. Ventilate the home thoroughly before flipping any electrical switch.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Boil Water Advisory:</strong> Tap water is contaminated with raw sewage and pathogens. Boil water vigorously for 3 minutes before drinking.</li>
+                  <li><strong style={{ color: '#f8fafc' }}>Silt Sanitization:</strong> Wear thick rubber boots. Disinfect all mud-soaked walls and floors with a 1:10 household bleach solution.</li>
                 </ul>
               </div>
 
@@ -704,11 +706,12 @@ export default function AiExplainerView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
           <div style={{
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '24px 28px',
-            color: '#ffffff',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+            color: '#f8fafc',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#ef4444', color: '#ffffff', padding: '3px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, marginBottom: '10px' }}>
               HYDRODYNAMIC LIFE-SAFETY LAW
@@ -722,11 +725,11 @@ export default function AiExplainerView({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
               
-              <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '18px' }}>
-                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#fbbf24', marginBottom: '4px' }}>
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '18px' }}>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#f59e0b', marginBottom: '4px' }}>
                   6 Inches (15 cm)
                 </div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#fef08a', marginBottom: '6px' }}>
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#fcd34d', marginBottom: '6px' }}>
                   Human Walking Threshold
                 </div>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.5 }}>
@@ -734,7 +737,7 @@ export default function AiExplainerView({
                 </p>
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '18px' }}>
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '18px' }}>
                 <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#f97316', marginBottom: '4px' }}>
                   12 Inches (30 cm)
                 </div>
@@ -746,7 +749,7 @@ export default function AiExplainerView({
                 </p>
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '18px' }}>
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '18px' }}>
                 <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#ef4444', marginBottom: '4px' }}>
                   24 Inches (60 cm)
                 </div>
@@ -758,7 +761,7 @@ export default function AiExplainerView({
                 </p>
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '18px' }}>
+              <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '18px' }}>
                 <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#ec4899', marginBottom: '4px' }}>
                   36+ Inches (1.0m+)
                 </div>
@@ -775,13 +778,13 @@ export default function AiExplainerView({
 
           {/* HIDDEN WATER HAZARDS INFOGRAPHIC */}
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
               ⚠️ The 5 Invisible Lethal Killers in Urban Floodwaters
             </h3>
 
@@ -793,11 +796,11 @@ export default function AiExplainerView({
                 { title: 'Sewage Contamination & Leptospirosis', desc: 'Floods mix rat urine and municipal sewage. Wading with scratches or cuts introduces Leptospira bacteria, leading to Weil\'s disease and multi-organ failure.', icon: '🦠' },
                 { title: 'Displaced Reptiles & Snakebites', desc: 'Vipers, cobras, and scorpions are displaced from burrows and swim onto submerged staircases, floating debris, and low tree branches to survive.', icon: '🐍' }
               ].map((hz, idx) => (
-                <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', gap: '12px' }}>
+                <div key={idx} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '16px', display: 'flex', gap: '12px' }}>
                   <span style={{ fontSize: '1.5rem' }}>{hz.icon}</span>
                   <div>
-                    <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: 700, color: '#0f172a' }}>{hz.title}</h4>
-                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#475569', lineHeight: 1.45 }}>{hz.desc}</p>
+                    <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>{hz.title}</h4>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.45 }}>{hz.desc}</p>
                   </div>
                 </div>
               ))}
@@ -815,42 +818,42 @@ export default function AiExplainerView({
           
           {/* CURRICULUM BANNER */}
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
               <div style={{ flex: '1 1 500px' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#dbeafe', color: '#1e40af', padding: '4px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 800, marginBottom: '8px' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 800, marginBottom: '8px' }}>
                   <span>🌊</span> Academic Syllabus Specification: Project 7 (Flood Focus)
                 </div>
-                <h2 style={{ margin: '0 0 8px', fontSize: '1.35rem', fontWeight: 800, color: '#0f172a' }}>
+                <h2 style={{ margin: '0 0 8px', fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>
                   AI-Based Flood Risk Prediction System (Course Outcome CO4 | Bloom's Level L6)
                 </h2>
-                <p style={{ margin: 0, fontSize: '0.88rem', color: '#475569', lineHeight: 1.6 }}>
-                  <strong>Core Syllabus Requirement:</strong> "Develop a machine learning-based system to predict disaster risks such as floods using environmental and weather-related parameters."
-                  Below is the rigorous audit demonstrating that <strong>all 7 required deliverables are 100% fulfilled and verified</strong> specifically for flood risk prediction and hydrodynamics.
+                <p style={{ margin: 0, fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                  <strong style={{ color: '#f8fafc' }}>Core Syllabus Requirement:</strong> "Develop a machine learning-based system to predict disaster risks such as floods using environmental and weather-related parameters."
+                  Below is the rigorous audit demonstrating that <strong style={{ color: '#10b981' }}>all 7 required deliverables are 100% fulfilled and verified</strong> specifically for flood risk prediction and hydrodynamics.
                 </p>
               </div>
 
               {/* OVERALL COMPLIANCE SCORECARD */}
               <div style={{
-                background: '#f0fdf4',
-                border: '2px solid #22c55e',
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid #10b981',
                 borderRadius: '14px',
                 padding: '16px 24px',
                 textAlign: 'center',
                 minWidth: '200px'
               }}>
-                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#15803d', lineHeight: 1 }}>
+                <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#10b981', lineHeight: 1 }}>
                   100%
                 </div>
-                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#166534', marginTop: '4px' }}>
+                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>
                   ALL 7 FLOOD CRITERIA FULFILLED
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '2px' }}>
                   Verified Against Code & Models ✅
                 </div>
               </div>
@@ -863,11 +866,11 @@ export default function AiExplainerView({
               <div
                 key={req.id}
                 style={{
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
+                  background: '#0b1120',
+                  border: '1px solid rgba(56, 189, 248, 0.18)',
                   borderRadius: '14px',
                   padding: '20px 24px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
                   transition: 'all 0.2s'
                 }}
               >
@@ -878,7 +881,8 @@ export default function AiExplainerView({
                       width: '42px',
                       height: '42px',
                       borderRadius: '10px',
-                      background: '#f1f5f9',
+                      background: '#0f172a',
+                      border: '1px solid #1e293b',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
@@ -887,12 +891,12 @@ export default function AiExplainerView({
                     </span>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>{req.code}</span>
-                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8' }}>{req.code}</span>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc' }}>
                           ● {req.title}
                         </h3>
                       </div>
-                      <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '2px' }}>
                         {req.description}
                       </div>
                     </div>
@@ -900,9 +904,9 @@ export default function AiExplainerView({
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{
-                      background: '#ecfdf5',
-                      color: '#047857',
-                      border: '1px solid #a7f3d0',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: '#10b981',
+                      border: '1px solid #10b981',
                       padding: '4px 12px',
                       borderRadius: '20px',
                       fontSize: '0.78rem',
@@ -917,11 +921,11 @@ export default function AiExplainerView({
                 </div>
 
                 {/* EVIDENCE POINTS */}
-                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px 18px', marginBottom: '12px' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.04em' }}>
+                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '14px 18px', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.04em' }}>
                     Concrete Flood Implementation & Deliverable Proof:
                   </div>
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#334155', lineHeight: 1.6 }}>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.84rem', color: '#cbd5e1', lineHeight: 1.6 }}>
                     {req.evidence.map((point, pIdx) => (
                       <li key={pIdx} style={{ marginBottom: '4px' }}>{point}</li>
                     ))}
@@ -930,8 +934,8 @@ export default function AiExplainerView({
 
                 {/* ARTIFACT PATH / CODE MAPPING */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', fontSize: '0.78rem' }}>
-                  <div style={{ color: '#64748b' }}>
-                    <strong style={{ color: '#475569' }}>Source Code & Artifacts:</strong> <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#0f172a' }}>{req.artifact}</code>
+                  <div style={{ color: '#94a3b8' }}>
+                    <strong style={{ color: '#f8fafc' }}>Source Code & Artifacts:</strong> <code style={{ background: '#0f172a', border: '1px solid #1e293b', padding: '2px 8px', borderRadius: '4px', color: '#38bdf8' }}>{req.artifact}</code>
                   </div>
                   <button
                     onClick={() => {
@@ -942,7 +946,7 @@ export default function AiExplainerView({
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#2563eb',
+                      color: '#38bdf8',
                       fontWeight: 700,
                       cursor: 'pointer',
                       padding: 0,
@@ -959,29 +963,29 @@ export default function AiExplainerView({
 
           {/* EDUCATIONAL ATTAINMENT */}
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
               🧠 Educational Attainment in Flood Prediction (CO4 & Bloom's L6)
             </h3>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Course Outcome Attainment</div>
-                <h4 style={{ margin: '4px 0 6px', fontSize: '0.98rem', fontWeight: 700, color: '#14532d' }}>CO4: Model Synthesis & Environmental Prediction</h4>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: '#166534', lineHeight: 1.5 }}>
+              <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>Course Outcome Attainment</div>
+                <h4 style={{ margin: '4px 0 6px', fontSize: '0.98rem', fontWeight: 700, color: '#34d399' }}>CO4: Model Synthesis & Environmental Prediction</h4>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.5 }}>
                   Attained by training and fine-tuning Native XGBoost and PyTorch FloodNet across 1,025,802 MODIS satellite flood records, extracting Topographic Wetness Index (TWI) and Ponding Hazard features, and achieving 0.9623 ROC-AUC.
                 </p>
               </div>
 
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e40af', textTransform: 'uppercase' }}>Bloom's Taxonomy Attainment</div>
-                <h4 style={{ margin: '4px 0 6px', fontSize: '0.98rem', fontWeight: 700, color: '#1e3a8a' }}>Level 6: "Create & Evaluate"</h4>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: '#1e40af', lineHeight: 1.5 }}>
+              <div style={{ background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase' }}>Bloom's Taxonomy Attainment</div>
+                <h4 style={{ margin: '4px 0 6px', fontSize: '0.98rem', fontWeight: 700, color: '#38bdf8' }}>Level 6: "Create & Evaluate"</h4>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.5 }}>
                   Achieved by creating a multi-tiered hydrodynamic flood early warning platform, designing custom feature formulations, evaluating across 10,000 unseen flood test vectors, and authoring life-saving evacuation SOPs.
                 </p>
               </div>
@@ -999,31 +1003,31 @@ export default function AiExplainerView({
           
           {/* READINESS SCORECARD */}
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <h2 style={{ margin: '0 0 6px', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                <h2 style={{ margin: '0 0 6px', fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
                   🎒 Rapid Flood Evacuation Go-Bag & Asset Readiness
                 </h2>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>
                   Specialized checklist designed for fast 15-minute emergency evacuation during an active flood advisory.
                 </p>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700 }}>FLOOD PREPAREDNESS</div>
-                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: checklistPercent >= 80 ? '#16a34a' : checklistPercent >= 50 ? '#d97706' : '#dc2626' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 700 }}>FLOOD PREPAREDNESS</div>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: checklistPercent >= 80 ? '#10b981' : checklistPercent >= 50 ? '#f59e0b' : '#ef4444' }}>
                     {checklistPercent}% Prepared
                   </div>
                 </div>
-                <div style={{ width: '120px', height: '12px', background: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                  <div style={{ width: `${checklistPercent}%`, height: '100%', background: checklistPercent >= 80 ? '#22c55e' : checklistPercent >= 50 ? '#f59e0b' : '#ef4444', transition: 'width 0.3s ease' }}></div>
+                <div style={{ width: '120px', height: '12px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', overflow: 'hidden' }}>
+                  <div style={{ width: `${checklistPercent}%`, height: '100%', background: checklistPercent >= 80 ? '#10b981' : checklistPercent >= 50 ? '#f59e0b' : '#ef4444', transition: 'width 0.3s ease' }}></div>
                 </div>
               </div>
             </div>
@@ -1053,8 +1057,8 @@ export default function AiExplainerView({
                 key={item.key}
                 onClick={() => toggleCheck(item.key)}
                 style={{
-                  background: checkedItems[item.key] ? '#f0fdf4' : '#ffffff',
-                  border: `1.5px solid ${checkedItems[item.key] ? '#86efac' : '#e2e8f0'}`,
+                  background: checkedItems[item.key] ? 'rgba(16, 185, 129, 0.12)' : '#0b1120',
+                  border: `1.5px solid ${checkedItems[item.key] ? '#10b981' : '#1e293b'}`,
                   borderRadius: '12px',
                   padding: '16px',
                   cursor: 'pointer',
@@ -1068,13 +1072,13 @@ export default function AiExplainerView({
                   type="checkbox"
                   checked={checkedItems[item.key]}
                   onChange={() => {}}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer', marginTop: '2px', accentColor: '#16a34a' }}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer', marginTop: '2px', accentColor: '#10b981' }}
                 />
                 <div>
-                  <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: 700, color: checkedItems[item.key] ? '#14532d' : '#0f172a' }}>
+                  <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: 700, color: checkedItems[item.key] ? '#34d399' : '#f8fafc' }}>
                     {item.label}
                   </h4>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: checkedItems[item.key] ? '#166534' : '#64748b', lineHeight: 1.45 }}>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: checkedItems[item.key] ? '#a7f3d0' : '#94a3b8', lineHeight: 1.45 }}>
                     {item.detail}
                   </p>
                 </div>
@@ -1092,22 +1096,22 @@ export default function AiExplainerView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            background: '#0b1120',
+            border: '1px solid rgba(56, 189, 248, 0.18)',
             borderRadius: '16px',
             padding: '24px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
-            <h2 style={{ margin: '0 0 6px', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
               💬 AI Flood Evacuation Specialist
             </h2>
-            <p style={{ margin: '0 0 20px', fontSize: '0.85rem', color: '#64748b' }}>
+            <p style={{ margin: '0 0 20px', fontSize: '0.85rem', color: '#94a3b8' }}>
               Click any common flood evacuation dilemma or type custom questions to get instant, hydro-model backed evacuation blueprints.
             </p>
 
             {/* PRE-SET QUESTION PILLS */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
                 Featured Flood Emergency Inquiries:
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }}>
@@ -1119,14 +1123,14 @@ export default function AiExplainerView({
                       setAiAnswer(sq.a);
                     }}
                     style={{
-                      background: '#f8fafc',
-                      border: '1px solid #cbd5e1',
+                      background: '#0f172a',
+                      border: '1px solid #1e293b',
                       borderRadius: '10px',
                       padding: '12px 14px',
                       textAlign: 'left',
                       fontSize: '0.82rem',
                       fontWeight: 600,
-                      color: '#1e293b',
+                      color: '#f8fafc',
                       cursor: 'pointer',
                       transition: 'all 0.15s',
                       display: 'flex',
@@ -1160,7 +1164,9 @@ export default function AiExplainerView({
                   flex: 1,
                   padding: '12px 16px',
                   borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
+                  border: '1px solid #1e293b',
+                  background: '#0f172a',
+                  color: '#f8fafc',
                   fontSize: '0.9rem',
                   outline: 'none'
                 }}
@@ -1174,14 +1180,15 @@ export default function AiExplainerView({
                   setAiAnswer(match.a);
                 }}
                 style={{
-                  background: '#2563eb',
+                  background: '#0284c7',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '10px',
                   padding: '12px 22px',
                   fontSize: '0.9rem',
                   fontWeight: 700,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
                 }}
               >
                 Analyze Flood SOP
@@ -1191,8 +1198,8 @@ export default function AiExplainerView({
             {/* AI RESPONSE BOX */}
             {aiAnswer && (
               <div style={{
-                background: '#f0f9ff',
-                border: '1.5px solid #7dd3fc',
+                background: '#0f172a',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
                 borderRadius: '12px',
                 padding: '20px',
                 position: 'relative'
@@ -1200,14 +1207,14 @@ export default function AiExplainerView({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '1.1rem' }}>🤖</span>
-                    <strong style={{ color: '#0369a1', fontSize: '0.92rem' }}>AI Flood Specialist Response:</strong>
+                    <strong style={{ color: '#38bdf8', fontSize: '0.92rem' }}>AI Flood Specialist Response:</strong>
                   </div>
                   <button
                     onClick={() => handleSpeak(aiAnswer)}
                     style={{
-                      background: '#e0f2fe',
-                      border: '1px solid #38bdf8',
-                      color: '#0284c7',
+                      background: '#0b1120',
+                      border: '1px solid #0284c7',
+                      color: '#38bdf8',
                       borderRadius: '6px',
                       padding: '4px 10px',
                       fontSize: '0.78rem',
@@ -1219,7 +1226,7 @@ export default function AiExplainerView({
                   </button>
                 </div>
 
-                <div style={{ fontSize: '0.86rem', color: '#0c4a6e', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                <div style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
                   {aiAnswer}
                 </div>
               </div>

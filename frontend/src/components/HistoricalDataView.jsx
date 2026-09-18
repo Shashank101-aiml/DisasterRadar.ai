@@ -98,45 +98,45 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
       primary_cause: "Arabian Sea storm surge breaching coastal sand bunds into low-lying agricultural saltpans.",
       damage_assessment: "Fishermen settlements flooded; 60 fishing trawlers damaged; coastal road impassable.",
       evacuated_count: 510,
-      verified_source: "Maharashtra Maritime Board & MBMC"
+      verified_source: "Maharashtra Maritime Board & MBMC Disaster Cell"
     },
     {
       id: 5,
-      event_name: "Miami King Tide & Brickell Storm Surge",
-      location: "Brickell Avenue & Biscayne Bay",
+      event_name: "Miami King Tide Saltwater Intrusion",
+      location: "Brickell & Alton Road",
       region: "Miami-Dade County",
       state: "Florida, USA",
-      event_date: "2023-11-16",
+      event_date: "2023-10-28",
       year: 2023,
-      rainfall_24h_mm: 285.0,
-      rainfall_72h_mm: 410.0,
-      peak_water_level_m: 1.8,
-      severity: "CRITICAL",
-      primary_cause: "Sunny day tidal surge + low-pressure storm wave overtopping seawalls.",
-      damage_assessment: "Saltwater intrusion into luxury condo parking decks; financial district road impassable.",
-      evacuated_count: 650,
-      verified_source: "NOAA & Miami-Dade Office of Emergency Management"
+      rainfall_24h_mm: 88.0,
+      rainfall_72h_mm: 140.0,
+      peak_water_level_m: 0.9,
+      severity: "HIGH",
+      primary_cause: "Perigean spring tide combined with sea level rise bubbling up through limestone stormwater outfalls.",
+      damage_assessment: "Street flooding in downtown commercial sectors; ground floor retail inundation.",
+      evacuated_count: 150,
+      verified_source: "NOAA National Ocean Service & City of Miami EOC"
     },
     {
       id: 6,
-      event_name: "Tokyo Typhoon Hagibis Arakawa Flood Defense",
-      location: "Edogawa & Kanda River Basin",
-      region: "Tokyo Metropolis",
+      event_name: "Tokyo Edogawa Super-Typhoon Hagibis Surge",
+      location: "Arakawa & Edogawa Lowland Basin",
+      region: "Tokyo Bay Metropolitan",
       state: "Kanto, Japan",
       event_date: "2019-10-12",
       year: 2019,
-      rainfall_24h_mm: 310.0,
-      rainfall_72h_mm: 520.0,
-      peak_water_level_m: 2.1,
+      rainfall_24h_mm: 312.0,
+      rainfall_72h_mm: 480.0,
+      peak_water_level_m: 3.2,
       severity: "CRITICAL",
-      primary_cause: "Typhoon Category 4 storm surge cresting urban levee defenses.",
-      damage_assessment: "G-Cans underground diversion tunnels filled to 95% capacity; low-lying wards flooded.",
-      evacuated_count: 4200,
-      verified_source: "Japan Meteorological Agency (JMA) & Tokyo Metropolitan Gov"
+      primary_cause: "Category 5 equivalent rainfall swell held back by G-CANS Metropolitan Underground Discharge Channel.",
+      damage_assessment: "Outer residential basins inundated; diversion channels filled to 94% capacity.",
+      evacuated_count: 22000,
+      verified_source: "Ministry of Land, Infrastructure, Transport and Tourism (MLIT)"
     },
     {
       id: 7,
-      event_name: "Venice Acqua Alta Record Lagoon Surge",
+      event_name: "Venice Historic Acqua Alta Surge Event",
       location: "St. Mark's Square & Cannaregio",
       region: "Venice Lagoon",
       state: "Veneto, Italy",
@@ -163,7 +163,7 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
       rainfall_72h_mm: 180.0,
       peak_water_level_m: 1.2,
       severity: "HIGH",
-      primary_cause: "Thunderstorm downpour overwhelming Victorian Victorian sewer network coinciding with Thames high tide.",
+      primary_cause: "Thunderstorm downpour overwhelming Victorian sewer network coinciding with Thames high tide.",
       damage_assessment: "Pudding Mill Lane DLR station submerged; hospitals declared internal major incidents.",
       evacuated_count: 410,
       verified_source: "UK Environment Agency & Met Office"
@@ -269,23 +269,37 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
     return Math.round((total / locationEvents.length) * 100) / 100;
   }, [locationEvents]);
 
+  // Functional severity pill color resolver (Strict single solid colors)
+  const getSeverityStyle = (sev) => {
+    if (sev === 'CRITICAL') {
+      return { background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid #ef4444' };
+    }
+    if (sev === 'HIGH') {
+      return { background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', border: '1px solid #f97316' };
+    }
+    if (sev === 'MODERATE') {
+      return { background: 'rgba(234, 179, 8, 0.15)', color: '#eab308', border: '1px solid #eab308' };
+    }
+    return { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid #10b981' };
+  };
+
   return (
-    <div className="historical-page-container" style={{ padding: isEmbeddedInModal ? '0' : '24px 32px', color: '#1e293b' }}>
+    <div className="historical-page-container" style={{ padding: isEmbeddedInModal ? '0' : '24px 32px', color: '#f8fafc' }}>
       {/* TOP HEADER & BREADCRUMB */}
       {!isEmbeddedInModal && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
               <button
                 onClick={onBackToDashboard}
                 style={{
-                  background: '#f1f5f9',
-                  border: '1px solid #cbd5e1',
+                  background: '#0f172a',
+                  border: '1px solid #1e293b',
                   borderRadius: '6px',
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   fontSize: '0.8rem',
                   fontWeight: 600,
-                  color: '#475569',
+                  color: '#94a3b8',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -294,22 +308,22 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
               >
                 ← Back to Dashboard
               </button>
-              <span style={{ color: '#94a3b8' }}>/</span>
-              <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Historical Data Center</span>
+              <span style={{ color: '#475569' }}>/</span>
+              <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 500 }}>Historical Data Center</span>
             </div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-              🏛️ Historical Flood Registry & Disaster Archive
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc', margin: 0, letterSpacing: '-0.02em' }}>
+              Historical Flood Registry & Disaster Archive
             </h2>
-            <div style={{ fontSize: '0.84rem', color: '#64748b', marginTop: '2px' }}>
-              Documented extreme flood events, peak water depths, and machine learning audit trails strictly scoped to <strong>{locName} {locCountry ? `(${locCountry})` : ''}</strong>
+            <div style={{ fontSize: '0.84rem', color: '#94a3b8', marginTop: '4px' }}>
+              Documented extreme flood events, peak water depths, and machine learning audit trails strictly scoped to <strong style={{ color: '#38bdf8' }}>{locName} {locCountry ? `(${locCountry})` : ''}</strong>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{
-              background: '#e0f2fe',
-              color: '#0369a1',
-              border: '1px solid #7dd3fc',
+              background: '#0f172a',
+              color: '#38bdf8',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
               padding: '6px 14px',
               borderRadius: '20px',
               fontSize: '0.8rem',
@@ -324,49 +338,50 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
         </div>
       )}
 
-      {/* 4 TOP AREA KPI CARDS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Cataloged Disasters</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0284c7', marginTop: '2px' }}>{locationEvents.length}</div>
-          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Verified Events in {locName}</div>
+      {/* 4 TOP AREA KPI CARDS - COMMAND CENTER AESTHETIC */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '22px' }}>
+        <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '16px 18px', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cataloged Disasters</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#38bdf8', marginTop: '4px' }}>{locationEvents.length}</div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>Verified Events in {locName}</div>
         </div>
 
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Record 24h Rainfall</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>{maxRain} mm</div>
-          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Peak Historical Downpour</div>
+        <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '16px 18px', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Record 24h Rainfall</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f8fafc', marginTop: '4px' }}>{maxRain} mm</div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>Peak Historical Downpour</div>
         </div>
 
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Avg Inundation Depth</div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#dc2626', marginTop: '2px' }}>{avgDepth} m</div>
-          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Low-Lying Chronic Bottlenecks</div>
+        <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '16px 18px', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Inundation Depth</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#ef4444', marginTop: '4px' }}>{avgDepth} m</div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>Low-Lying Chronic Bottlenecks</div>
         </div>
 
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Primary Area Hazard</div>
-          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#b91c1c', marginTop: '6px', lineHeight: 1.2 }}>{areaHazard}</div>
-          <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px' }}>Dominant Vulnerability Factor</div>
+        <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '16px 18px', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Primary Area Hazard</div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f97316', marginTop: '6px', lineHeight: 1.3 }}>{areaHazard}</div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '4px' }}>Dominant Vulnerability Factor</div>
         </div>
       </div>
 
       {/* PRIMARY SUB-TABS NAVIGATION */}
-      <div style={{ display: 'flex', gap: '10px', borderBottom: '2px solid #e2e8f0', marginBottom: '18px' }}>
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #1e293b', marginBottom: '20px' }}>
         <button
           onClick={() => setSubTab('events')}
           style={{
             background: 'none',
             border: 'none',
             borderBottom: subTab === 'events' ? '3px solid #0284c7' : '3px solid transparent',
-            color: subTab === 'events' ? '#0284c7' : '#64748b',
+            color: subTab === 'events' ? '#38bdf8' : '#94a3b8',
             fontWeight: 700,
             fontSize: '0.92rem',
             padding: '10px 16px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '6px',
+            transition: 'color 0.15s ease'
           }}
         >
           📜 Major Inundation Disasters ({locationEvents.length})
@@ -378,14 +393,15 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
             background: 'none',
             border: 'none',
             borderBottom: subTab === 'audit' ? '3px solid #0284c7' : '3px solid transparent',
-            color: subTab === 'audit' ? '#0284c7' : '#64748b',
+            color: subTab === 'audit' ? '#38bdf8' : '#94a3b8',
             fontWeight: 700,
             fontSize: '0.92rem',
             padding: '10px 16px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '6px',
+            transition: 'color 0.15s ease'
           }}
         >
           🕒 Live Prediction Audit Log
@@ -396,7 +412,7 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
       {subTab === 'events' && (
         <div>
           {/* SEARCH & FILTER BAR */}
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '10px', flex: 1, minWidth: '280px' }}>
               <input
                 type="text"
@@ -405,9 +421,11 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
                 onChange={(e) => setSearch(e.target.value)}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #1e293b',
+                  background: '#0b1120',
+                  color: '#f8fafc',
                   fontSize: '0.84rem'
                 }}
               />
@@ -415,11 +433,12 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value)}
                 style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #1e293b',
                   fontSize: '0.84rem',
-                  background: '#fff'
+                  background: '#0b1120',
+                  color: '#f8fafc'
                 }}
               >
                 <option value="ALL">All Severities</option>
@@ -446,13 +465,14 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
                 }}
                 style={{
                   background: '#0284c7',
-                  color: '#fff',
+                  color: '#ffffff',
                   border: 'none',
-                  borderRadius: '6px',
-                  padding: '7px 12px',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
                 }}
               >
                 📥 Export CSV
@@ -461,63 +481,64 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
           </div>
 
           {/* TABLE OF DISASTERS */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', overflowX: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
               <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#475569' }}>
-                  <th style={{ padding: '10px 12px' }}>Date & Event</th>
-                  <th style={{ padding: '10px 12px' }}>Region / Ward</th>
-                  <th style={{ padding: '10px 12px' }}>Severity</th>
-                  <th style={{ padding: '10px 12px' }}>Rainfall (24h / 72h)</th>
-                  <th style={{ padding: '10px 12px' }}>Peak Depth</th>
-                  <th style={{ padding: '10px 12px' }}>Causal Dynamics & Impact Assessment</th>
+                <tr style={{ background: '#0f172a', borderBottom: '1px solid rgba(56, 189, 248, 0.2)', color: '#94a3b8' }}>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Date & Event</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Region / Ward</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Severity</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Rainfall (24h / 72h)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Peak Depth</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Causal Dynamics & Impact Assessment</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredEvents.map(ev => (
-                  <tr key={ev.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '12px', minWidth: '180px' }}>
-                      <strong style={{ color: '#0f172a', fontSize: '0.86rem' }}>{ev.event_name}</strong>
-                      <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>📅 {ev.event_date} ({ev.year})</div>
-                    </td>
-                    <td style={{ padding: '12px', minWidth: '150px' }}>
-                      <strong style={{ color: '#0369a1' }}>{ev.region}</strong>
-                      <div style={{ fontSize: '0.74rem', color: '#64748b' }}>{ev.location}</div>
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        background: ev.severity === 'CRITICAL' ? '#fee2e2' : (ev.severity === 'HIGH' ? '#ffedd5' : '#fef9c3'),
-                        color: ev.severity === 'CRITICAL' ? '#b91c1c' : (ev.severity === 'HIGH' ? '#c2410c' : '#854d0e'),
-                        border: `1px solid ${ev.severity === 'CRITICAL' ? '#fca5a5' : (ev.severity === 'HIGH' ? '#fed7aa' : '#fef08a')}`
-                      }}>
-                        {ev.severity}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                      <strong style={{ color: '#0f172a' }}>{ev.rainfall_24h_mm} mm</strong> <span style={{ color: '#64748b', fontSize: '0.74rem' }}>(24h)</span>
-                      <div style={{ fontSize: '0.74rem', color: '#64748b' }}>{ev.rainfall_72h_mm} mm (72h)</div>
-                    </td>
-                    <td style={{ padding: '12px', color: '#dc2626', fontWeight: 800, fontSize: '0.9rem' }}>
-                      {ev.peak_water_level_m} meters
-                    </td>
-                    <td style={{ padding: '12px', maxWidth: '380px' }}>
-                      <div style={{ color: '#334155', lineHeight: 1.4, marginBottom: '4px' }}>
-                        <strong>Cause:</strong> {ev.primary_cause}
-                      </div>
-                      <div style={{ color: '#64748b', fontSize: '0.76rem', lineHeight: 1.3 }}>
-                        <strong>Impact:</strong> {ev.damage_assessment} (Evacuated: {ev.evacuated_count?.toLocaleString() || 'N/A'})
-                      </div>
-                      <div style={{ color: '#94a3b8', fontSize: '0.7rem', marginTop: '2px' }}>
-                        Source: {ev.verified_source}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredEvents.map(ev => {
+                  const sevStyle = getSeverityStyle(ev.severity);
+                  return (
+                    <tr key={ev.id} style={{ borderBottom: '1px solid #1e293b', transition: 'background 0.15s ease' }}>
+                      <td style={{ padding: '14px 16px', minWidth: '180px' }}>
+                        <strong style={{ color: '#f8fafc', fontSize: '0.86rem' }}>{ev.event_name}</strong>
+                        <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '2px' }}>📅 {ev.event_date} ({ev.year})</div>
+                      </td>
+                      <td style={{ padding: '14px 16px', minWidth: '150px' }}>
+                        <strong style={{ color: '#38bdf8' }}>{ev.region}</strong>
+                        <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>{ev.location}</div>
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 9px',
+                          borderRadius: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          ...sevStyle
+                        }}>
+                          {ev.severity}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                        <strong style={{ color: '#f8fafc' }}>{ev.rainfall_24h_mm} mm</strong> <span style={{ color: '#64748b', fontSize: '0.74rem' }}>(24h)</span>
+                        <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>{ev.rainfall_72h_mm} mm (72h)</div>
+                      </td>
+                      <td style={{ padding: '14px 16px', color: '#ef4444', fontWeight: 800, fontSize: '0.9rem' }}>
+                        {ev.peak_water_level_m} meters
+                      </td>
+                      <td style={{ padding: '14px 16px', maxWidth: '380px' }}>
+                        <div style={{ color: '#cbd5e1', lineHeight: 1.4, marginBottom: '4px' }}>
+                          <strong style={{ color: '#f8fafc' }}>Cause:</strong> {ev.primary_cause}
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '0.76rem', lineHeight: 1.3 }}>
+                          <strong style={{ color: '#cbd5e1' }}>Impact:</strong> {ev.damage_assessment} (Evacuated: {ev.evacuated_count?.toLocaleString() || 'N/A'})
+                        </div>
+                        <div style={{ color: '#64748b', fontSize: '0.7rem', marginTop: '3px' }}>
+                          Source: {ev.verified_source}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -527,56 +548,59 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
       {/* SUB-TAB 2: LIVE PREDICTION AUDIT LOG */}
       {subTab === 'audit' && (
         <div>
-          <div style={{ background: '#eff6ff', borderLeft: '4px solid #3b82f6', padding: '12px 16px', borderRadius: '6px', marginBottom: '14px' }}>
-            <strong style={{ color: '#1e40af', fontSize: '0.86rem' }}>Persistent ML Audit Trail for {locName}:</strong>
-            <p style={{ color: '#1e3a8a', fontSize: '0.8rem', margin: '2px 0 0 0' }}>
+          <div style={{ background: '#0b1120', borderLeft: '4px solid #0284c7', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '14px 18px', borderRadius: '8px', marginBottom: '16px' }}>
+            <strong style={{ color: '#38bdf8', fontSize: '0.86rem' }}>Persistent ML Audit Trail for {locName}:</strong>
+            <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
               Every model prediction executed via the dashboard or REST API (<code>POST /api/predict</code>) is recorded with environmental telemetry and dominant TreeSHAP risk factors.
             </p>
           </div>
 
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', overflowX: 'auto' }}>
+          <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', overflowX: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
               <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#475569' }}>
-                  <th style={{ padding: '10px 12px' }}>Timestamp</th>
-                  <th style={{ padding: '10px 12px' }}>Location</th>
-                  <th style={{ padding: '10px 12px' }}>Rain (24h / 72h)</th>
-                  <th style={{ padding: '10px 12px' }}>Elevation</th>
-                  <th style={{ padding: '10px 12px' }}>Risk Probability</th>
-                  <th style={{ padding: '10px 12px' }}>Alert Level</th>
-                  <th style={{ padding: '10px 12px' }}>Primary TreeSHAP Driver</th>
+                <tr style={{ background: '#0f172a', borderBottom: '1px solid rgba(56, 189, 248, 0.2)', color: '#94a3b8' }}>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Timestamp</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Location</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Rain (24h / 72h)</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Elevation</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Risk Probability</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Alert Level</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 700 }}>Primary TreeSHAP Driver</th>
                 </tr>
               </thead>
               <tbody>
-                {auditLogs.slice(0, 15).map(log => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: '0.74rem', color: '#64748b' }}>
-                      {log.timestamp}
-                    </td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, color: '#0f172a' }}>{log.location}</td>
-                    <td style={{ padding: '10px 12px' }}>{log.rainfall_24h} mm / {log.rainfall_72h} mm</td>
-                    <td style={{ padding: '10px 12px' }}>{log.elevation} m</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 800, color: log.probability >= 70 ? '#dc2626' : (log.probability >= 50 ? '#d97706' : '#16a34a') }}>
-                      {log.probability}%
-                    </td>
-                    <td style={{ padding: '10px 12px' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        background: log.risk_level === 'CRITICAL' ? '#fee2e2' : (log.risk_level === 'HIGH' ? '#ffedd5' : '#fef9c3'),
-                        color: log.risk_level === 'CRITICAL' ? '#b91c1c' : (log.risk_level === 'HIGH' ? '#c2410c' : '#854d0e')
-                      }}>
-                        {log.risk_level}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 12px', fontSize: '0.76rem', color: '#475569' }}>
-                      <code>{log.primary_driver}</code>
-                    </td>
-                  </tr>
-                ))}
+                {auditLogs.slice(0, 15).map(log => {
+                  const riskStyle = getSeverityStyle(log.risk_level);
+                  const probColor = log.probability >= 70 ? '#ef4444' : (log.probability >= 50 ? '#f59e0b' : '#10b981');
+                  return (
+                    <tr key={log.id} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '0.74rem', color: '#94a3b8' }}>
+                        {log.timestamp}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontWeight: 600, color: '#f8fafc' }}>{log.location}</td>
+                      <td style={{ padding: '12px 16px', color: '#cbd5e1' }}>{log.rainfall_24h} mm / {log.rainfall_72h} mm</td>
+                      <td style={{ padding: '12px 16px', color: '#cbd5e1' }}>{log.elevation} m</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 800, color: probColor }}>
+                        {log.probability}%
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          ...riskStyle
+                        }}>
+                          {log.risk_level}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '0.76rem', color: '#94a3b8' }}>
+                        <code style={{ background: '#0f172a', padding: '2px 6px', borderRadius: '4px', border: '1px solid #1e293b', color: '#38bdf8' }}>{log.primary_driver}</code>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

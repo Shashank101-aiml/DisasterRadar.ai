@@ -211,6 +211,72 @@ export async function geocodeLocation(query) {
 }
 
 /**
+ * Fetch live weather from Open-Meteo using either:
+ * Way 1: Coordinates (latitude & longitude)
+ * Way 2: Location / Place Name (geocoded by Open-Meteo)
+ */
+export async function fetchLiveWeatherByLocationOrCoords({ latitude, longitude, location } = {}) {
+  // 1. Try Backend endpoint first
+  try {
+    const queryParts = [];
+    if (location) queryParts.push(`location=${encodeURIComponent(location)}`);
+    if (latitude !== undefined && latitude !== null && !isNaN(latitude)) queryParts.push(`latitude=${latitude}`);
+    if (longitude !== undefined && longitude !== null && !isNaN(longitude)) queryParts.push(`longitude=${longitude}`);
+
+    if (queryParts.length > 0) {
+      const url = `${API_BASE}/geospatial/weather?${queryParts.join('&')}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.status === 'success') {
+          return {
+            rainfall24h: data.rainfall_24h,
+            rainfall72h: data.rainfall_72h,
+            temperature: data.temperature,
+            humidity: data.humidity,
+            pressure: data.pressure,
+            windSpeed: data.wind_speed,
+            elevation: data.elevation,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            location: data.location || location,
+            source: data.source || 'Open-Meteo Global API'
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Backend live weather query failed, falling back to direct browser Open-Meteo query:', err);
+  }
+
+  // 2. Direct browser query fallback to Open-Meteo
+  let targetLat = latitude;
+  let targetLng = longitude;
+  let targetLoc = location;
+
+  if (location && (targetLat === undefined || targetLat === null || isNaN(targetLat))) {
+    const geoList = await geocodeLocation(location);
+    if (geoList && geoList.length > 0) {
+      targetLat = geoList[0].lat;
+      targetLng = geoList[0].lng;
+      targetLoc = `${geoList[0].name}, ${geoList[0].country}`.trim();
+    }
+  }
+
+  if (targetLat !== undefined && targetLng !== undefined && !isNaN(targetLat) && !isNaN(targetLng)) {
+    const telem = await fetchGlobalLiveTelemetry(targetLat, targetLng);
+    return {
+      ...telem,
+      latitude: targetLat,
+      longitude: targetLng,
+      location: targetLoc || `Coords (${targetLat.toFixed(3)}, ${targetLng.toFixed(3)})`
+    };
+  }
+
+  return null;
+}
+
+/**
  * Fetch real-time meteorological telemetry & elevation for any coordinate globally
  */
 export async function fetchGlobalLiveTelemetry(lat, lng) {

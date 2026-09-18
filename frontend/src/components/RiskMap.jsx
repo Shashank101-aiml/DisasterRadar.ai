@@ -78,6 +78,13 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap }) {
       markers.push(marker);
     });
 
+    if (markers.length > 0) {
+      try {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.12));
+      } catch (err) {}
+    }
+
     return () => {
       markers.forEach(m => m.remove());
     };
