@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { colors } from '../../constants/colors';
 import type { MiraBhayandarGisData } from '../../types/api';
+import PulseBeacon from './PulseBeacon';
 
 interface TargetLocation {
   name: string;
@@ -89,12 +90,23 @@ if (Platform.OS !== 'web') {
                 </Callout>
               </Marker>
             ))}
+            <Marker
+              coordinate={{ latitude: gisData.metadata.center[0], longitude: gisData.metadata.center[1] }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges
+            >
+              <PulseBeacon color={colors.accent} />
+            </Marker>
           </>
         ) : (
           <Marker
             coordinate={{ latitude: targetLocation.lat, longitude: targetLocation.lng }}
-            pinColor={predictionProbability && predictionProbability > 70 ? colors.danger : predictionProbability && predictionProbability > 40 ? colors.warning : colors.success}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges
           >
+            <PulseBeacon
+              color={predictionProbability && predictionProbability > 70 ? colors.danger : predictionProbability && predictionProbability > 40 ? colors.warning : colors.success}
+            />
             <Callout>
               <View style={{ padding: 4, minWidth: 140 }}>
                 <Text style={{ fontWeight: '700', fontSize: 12 }}>{targetLocation.name}</Text>
