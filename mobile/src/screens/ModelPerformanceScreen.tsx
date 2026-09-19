@@ -74,6 +74,7 @@ export default function ModelPerformanceScreen() {
   const [models, setModels] = useState<BenchmarkModel[]>(DEFAULT_MODELS);
   const [features, setFeatures] = useState<ShapFeature[]>(DEFAULT_FEATURES);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUsingFallback, setIsUsingFallback] = useState(true);
 
   const [sandboxInputs, setSandboxInputs] = useState({ rainfall24h: 85, rainfall72h: 190, elevation: 25, ndwi: 0.28, drainageCapacity: 35 });
   const [sandboxResult, setSandboxResult] = useState<{ probability: number; latency: string; isBreached: boolean } | null>(null);
@@ -82,10 +83,13 @@ export default function ModelPerformanceScreen() {
   useEffect(() => {
     fetchDetailedModelAnalytics()
       .then((res) => {
-        if (res?.models?.length) setModels(res.models as unknown as BenchmarkModel[]);
-        if (res?.features?.length) setFeatures(res.features as unknown as ShapFeature[]);
+        const gotModels = !!res?.models?.length;
+        const gotFeatures = !!res?.features?.length;
+        if (gotModels) setModels(res.models as unknown as BenchmarkModel[]);
+        if (gotFeatures) setFeatures(res.features as unknown as ShapFeature[]);
+        setIsUsingFallback(!(gotModels && gotFeatures));
       })
-      .catch(() => {})
+      .catch(() => setIsUsingFallback(true))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -131,6 +135,11 @@ export default function ModelPerformanceScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 14 }}>
       <Text style={styles.title}>Model Performance & Diagnostics Studio</Text>
       {isLoading && <ActivityIndicator color={colors.accent} style={{ marginVertical: 8 }} />}
+      {!isLoading && isUsingFallback && (
+        <View style={styles.fallbackBanner}>
+          <Text style={styles.fallbackBannerText}>⚠ Showing bundled reference metrics — live analytics endpoint unavailable</Text>
+        </View>
+      )}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPillRow}>
         {models.map((m) => {
@@ -511,6 +520,8 @@ function SandboxSlider({ label, value, unit, min, max, step = 1, onChange }: any
 
 const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '800', color: colors.text, marginBottom: 10 },
+  fallbackBanner: { backgroundColor: 'rgba(234,179,8,0.1)', borderWidth: 1, borderColor: 'rgba(234,179,8,0.3)', borderRadius: 8, padding: 10, marginBottom: 10 },
+  fallbackBannerText: { color: colors.warning, fontSize: 11, fontWeight: '600' },
   modelPillRow: { gap: 8, marginBottom: 6 },
   modelPill: { backgroundColor: colors.panel, borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, padding: 10, minWidth: 100 },
   modelPillActive: { backgroundColor: colors.accentDark, borderColor: colors.accent },
