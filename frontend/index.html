@@ -24,8 +24,11 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
+    <script type="module">
+      // Registered in production builds only — Vite's dev server has no /sw.js file and falls back
+      // to serving index.html for the request, which the browser then installs as a broken "service
+      // worker" that intercepts and corrupts every subsequent module fetch in this dev session.
+      if (!import.meta.env.DEV && 'serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').then((registration) => {
             console.log('[PWA] ServiceWorker registered with scope:', registration.scope);

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 // Real, EAS-built sideloadable APK — replaces the old Capacitor-instructions placeholder.
 // Update this after each new build (run `npx eas-cli build:list --platform android --limit 1 --json`
 // from mobile/ and take artifacts.buildUrl).
-const APK_DOWNLOAD_URL = 'https://expo.dev/artifacts/eas/1NPKvhFI7faiG24Obiul1Araa9IHT4Jv1mo1u_r5SSU.apk';
+const APK_DOWNLOAD_URL = 'https://expo.dev/artifacts/eas/DqvWsKkwzWMpD1B3WpSy7nT-FP0cPEIYbe3HuiGbYlQ.apk';
 const APK_VERSION_LABEL = 'v1.0.0 (Preview build)';
 
 export default function InstallAppModal({ isOpen, onClose }) {
