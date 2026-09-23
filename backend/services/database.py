@@ -81,6 +81,34 @@ def init_database():
         advisory TEXT NOT NULL
     );
     """)
+
+    # 4. Crowdsourced Citizen Flood Reports
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS citizen_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        location TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        water_depth_cm REAL NOT NULL,
+        severity TEXT NOT NULL,
+        description TEXT NOT NULL,
+        reporter_name TEXT NOT NULL,
+        photo_url TEXT,
+        status TEXT NOT NULL DEFAULT 'ACTIVE'
+    );
+    """)
+
+    # 5. User Profiles for App Authentication
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    """)
     
     conn.commit()
     
@@ -554,3 +582,176 @@ def get_prediction_audit_log(limit: int = 50) -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def get_dynamic_recent_predictions(limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Dynamically loads the most recent predictions from SQLite.
+    Formats timestamps into human-readable format.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT timestamp, location, probability, risk_level 
+    FROM prediction_audit_log 
+    ORDER BY id DESC LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    results = []
+    for r in rows:
+        ts = r["timestamp"]
+        # Convert timestamp to HH:MM AM/PM if possible
+        try:
+            dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+            time_str = dt.strftime("%I:%M %p")
+        except Exception:
+            time_str = ts
+            
+        results.append({
+            "time": time_str,
+            "location": r["location"].split(",")[0] if r["location"] else "Custom Area",
+            "probability": round(float(r["probability"]), 1),
+            "riskLevel": r["risk_level"]
+        })
+    return results
+
+def add_citizen_report(
+    location: str,
+    latitude: float,
+    longitude: float,
+    water_depth_cm: float,
+    severity: str,
+    description: str,
+    reporter_name: Optional[str] = "Anonymous Citizen",
+    photo_url: Optional[str] = None
+) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    cursor.execute("""
+    INSERT INTO citizen_reports (
+        timestamp, location, latitude, longitude, water_depth_cm,
+        severity, description, reporter_name, photo_url, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+    """, (now_str, location, latitude, longitude, water_depth_cm, severity, description, reporter_name or "Anonymous", photo_url))
+    
+    report_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return {
+        "id": report_id,
+        "timestamp": now_str,
+        "location": location,
+        "latitude": latitude,
+        "longitude": longitude,
+        "waterDepthCm": water_depth_cm,
+        "severity": severity,
+        "description": description,
+        "reporterName": reporter_name or "Anonymous",
+        "photoUrl": photo_url,
+        "status": "ACTIVE"
+    }
+
+def get_citizen_reports(limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM citizen_reports ORDER BY id DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [
+        {
+            "id": r["id"],
+            "timestamp": r["timestamp"],
+            "location": r["location"],
+            "latitude": r["latitude"],
+            "longitude": r["longitude"],
+            "waterDepthCm": r["water_depth_cm"],
+            "severity": r["severity"],
+            "description": r["description"],
+            "reporterName": r["reporter_name"],
+            "photoUrl": r["photo_url"],
+            "status": r["status"]
+        }
+        for r in rows
+    ]
+
+import hashlib
+
+def hash_password(password: str) -> str:
+    # SHA-256 with consistent salt
+    salt = "disaster_radar_secure_salt_2026"
+    return hashlib.sha256((password + salt).encode("utf-8")).hexdigest()
+
+def create_user(email: str, password: str, full_name: str) -> Optional[Dict[str, Any]]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    pwd_hash = hash_password(password)
+    
+    try:
+        cursor.execute("""
+        INSERT INTO users (email, password_hash, full_name, created_at)
+        VALUES (?, ?, ?, ?)
+        """, (email.strip().lower(), pwd_hash, full_name.strip(), now_str))
+        user_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return {
+            "id": user_id,
+            "email": email.strip().lower(),
+            "fullName": full_name.strip(),
+            "createdAt": now_str
+        }
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None
+
+def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    pwd_hash = hash_password(password)
+    
+    cursor.execute("""
+    SELECT id, email, full_name, created_at FROM users
+    WHERE email = ? AND password_hash = ?
+    """, (email.strip().lower(), pwd_hash))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        return {
+            "id": row["id"],
+            "email": row["email"],
+            "fullName": row["full_name"],
+            "createdAt": row["created_at"]
+        }
+    return None
+
+def ingest_station_telemetry(
+    station_id: str,
+    station_name: str,
+    rainfall_24h: float,
+    rainfall_72h: float,
+    elevation: float,
+    water_level: float,
+    status: str = "ONLINE"
+) -> Dict[str, Any]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    cursor.execute("""
+    INSERT INTO historical_telemetry (
+        station_id, station_name, timestamp, rainfall_24h,
+        rainfall_72h, elevation, water_level, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (station_id, station_name, now_str, rainfall_24h, rainfall_72h, elevation, water_level, status))
+    
+    conn.commit()
+    conn.close()
+    return {"status": "success", "recorded_at": now_str, "station_id": station_id}
+

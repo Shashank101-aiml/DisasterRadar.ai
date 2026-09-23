@@ -24,7 +24,9 @@ import {
   predictFloodRisk,
   fetchStations,
   fetchModelPerformance,
-  fetchRecentPredictions
+  fetchRecentPredictions,
+  fetchLiveWeatherByLocationOrCoords,
+  reverseGeocodeCoords
 } from './services/api';
 
 export default function App() {
@@ -35,42 +37,41 @@ export default function App() {
 
   // Active Geographic Zone for Risk Map and Location-Specific History
   const [activeLocation, setActiveLocation] = useState({
-    name: 'Mira Bhayandar',
+    name: 'Bengaluru, Karnataka',
     country: 'India',
-    lat: 19.2952,
-    lng: 72.8544
+    lat: 12.9603,
+    lng: 77.7151
   });
 
-  // Input Parameters State
+  // Input Parameters State (Initialized to real live baseline for Bengaluru)
   const [params, setParams] = useState({
-    rainfall24h: 85,
-    rainfall72h: 190,
-    temperature: 25,
-    humidity: 82,
+    rainfall24h: 0.0,
+    rainfall72h: 0.0,
+    temperature: 21.2,
+    humidity: 78,
     windSpeed: 12,
-    pressure: 1005,
-    elevation: 900,
-    latitude: 12.97,
-    longitude: 77.59,
+    pressure: 910,
+    elevation: 897,
+    latitude: 12.9603,
+    longitude: 77.7151,
     location: 'Bengaluru, Karnataka'
   });
 
-
   // Current Prediction State
   const [prediction, setPrediction] = useState({
-    probability: 78.4,
-    riskLevel: 'HIGH',
-    riskClass: 'high',
-    recommendation: 'Monitor rainfall and drainage conditions closely. Issue early warning for low-lying areas and prepare emergency response resources.',
+    probability: 2.5,
+    riskLevel: 'LOW',
+    riskClass: 'low',
+    recommendation: 'SAFE: Environmental conditions well within absorption thresholds. Continue routine hydrological monitoring.',
     location: 'Bengaluru, Karnataka',
-    latitude: 12.97,
-    longitude: 77.59,
+    latitude: 12.9603,
+    longitude: 77.7151,
     riskFactors: [
-      { name: 'Rainfall (72h)', value: 31, color: '#ef4444' },
-      { name: 'Rainfall (24h)', value: 22, color: '#f97316' },
       { name: 'Humidity', value: 12, color: '#eab308' },
-      { name: 'Elevation', value: 8, color: '#a3e635' },
-      { name: 'Temperature', value: 8, color: '#84cc16' }
+      { name: 'Rainfall (72h)', value: 5, color: '#ef4444' },
+      { name: 'Rainfall (24h)', value: 4, color: '#f97316' },
+      { name: 'Elevation', value: 3, color: '#a3e635' },
+      { name: 'Temperature', value: 2, color: '#84cc16' }
     ]
   });
 
@@ -79,6 +80,56 @@ export default function App() {
   const [modelMetrics, setModelMetrics] = useState(null);
   const [recentPredictions, setRecentPredictions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingRealTelemetry, setIsFetchingRealTelemetry] = useState(false);
+  const [telemetrySyncStatus, setTelemetrySyncStatus] = useState('');
+
+  // Unified Location & Live Telemetry Synchronizer for ALL tabs
+  const handleLocationTelemetrySync = async (newLoc, newParams = null, newPred = null) => {
+    if (!newLoc) return;
+    setActiveLocation(newLoc);
+
+    if (newParams && newPred) {
+      setParams(newParams);
+      setPrediction(newPred);
+      setIsFetchingRealTelemetry(false);
+      return;
+    }
+
+    // Keep actively fetching real data for the requested location until loaded
+    setIsFetchingRealTelemetry(true);
+    setTelemetrySyncStatus(`Fetching real-time Open-Meteo & Copernicus telemetry for ${newLoc.name}...`);
+    try {
+      const live = await fetchLiveWeatherByLocationOrCoords({
+        latitude: newLoc.lat,
+        longitude: newLoc.lng,
+        location: newLoc.name
+      });
+      if (live) {
+        const updated = {
+          rainfall24h: live.rainfall24h,
+          rainfall72h: live.rainfall72h,
+          temperature: live.temperature,
+          humidity: live.humidity,
+          windSpeed: live.windSpeed || 12,
+          pressure: live.pressure || 1012,
+          elevation: live.elevation,
+          latitude: newLoc.lat,
+          longitude: newLoc.lng,
+          location: newLoc.name
+        };
+        setParams(updated);
+        const pred = await predictFloodRisk(updated);
+        if (pred) setPrediction(pred);
+        setTelemetrySyncStatus(`✓ Live telemetry loaded for ${newLoc.name}`);
+        setTimeout(() => setTelemetrySyncStatus(''), 4000);
+      }
+    } catch (err) {
+      console.warn('Real-time sync error for location:', err);
+      setTelemetrySyncStatus('⚠️ Sync error, retrying...');
+    } finally {
+      setIsFetchingRealTelemetry(false);
+    }
+  };
 
   // Initial Data Fetch
   useEffect(() => {
@@ -92,25 +143,29 @@ export default function App() {
       setModelMetrics(perfData);
       setRecentPredictions(recentData);
 
-      // Initialize dashboard with the first live station (e.g. Mira Bhayandar)
-      if (stationList && stationList.length > 0) {
-        const topStation = stationList[0];
-        const liveParams = {
-          rainfall24h: topStation.r24,
-          rainfall72h: topStation.r72,
-          temperature: topStation.temp,
-          humidity: topStation.hum,
-          windSpeed: 14,
-          pressure: 1008,
-          elevation: topStation.elev,
-          latitude: topStation.lat,
-          longitude: topStation.lng,
-          location: `${topStation.name}, India`
-        };
-        setParams(liveParams);
-        predictFloodRisk(liveParams).then(res => {
-          if (res) setPrediction(res);
-        }).catch(() => {});
+      // Ingest live real-time weather on startup for user's device or location
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        setIsFetchingRealTelemetry(true);
+        setTelemetrySyncStatus('Detecting device GPS coordinates...');
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const userLat = parseFloat(pos.coords.latitude.toFixed(4));
+            const userLng = parseFloat(pos.coords.longitude.toFixed(4));
+            let liveLocName = `Device Location (${userLat}, ${userLng})`;
+            try {
+              const geo = await reverseGeocodeCoords(userLat, userLng);
+              if (geo && geo.name) liveLocName = geo.name;
+            } catch (e) {}
+            await handleLocationTelemetrySync({ name: liveLocName, country: '', lat: userLat, lng: userLng });
+          },
+          async (err) => {
+            console.log('GPS geolocation fallback to current location:', err.message);
+            await handleLocationTelemetrySync({ name: 'Bengaluru, Karnataka', country: 'India', lat: 12.9603, lng: 77.7151 });
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+        );
+      } else {
+        handleLocationTelemetrySync({ name: 'Bengaluru, Karnataka', country: 'India', lat: 12.9603, lng: 77.7151 });
       }
     }
     loadData();
@@ -244,7 +299,31 @@ export default function App() {
           onOpenAlerts={() => setActiveTab('alerts')}
           onOpenProfile={() => setActiveTab('about')}
           onDownloadApp={() => setIsDownloadModalOpen(true)}
+          activeLocation={activeLocation}
+          isFetchingRealTelemetry={isFetchingRealTelemetry}
         />
+
+        {/* Real-time Telemetry Ingestion Banner */}
+        {isFetchingRealTelemetry && (
+          <div style={{
+            background: 'rgba(2, 132, 199, 0.16)',
+            borderBottom: '1px solid rgba(56, 189, 248, 0.35)',
+            padding: '8px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.82rem',
+            color: '#38bdf8',
+            fontWeight: 600,
+            zIndex: 40
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="live-pulsing-dot" style={{ background: '#38bdf8', width: '8px', height: '8px' }} />
+              <span>{telemetrySyncStatus || `Ingesting real-time Open-Meteo & Copernicus telemetry for ${activeLocation.name}...`}</span>
+            </div>
+            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Live Planetary Stream</span>
+          </div>
+        )}
 
         {activeTab === 'map' ? (
           /* 3D WORLD GLOBE & CARTOGRAPHIC GIS ATLAS VIEW */
@@ -252,7 +331,7 @@ export default function App() {
             onBackToDashboard={() => setActiveTab('dashboard')}
             onSelectLocationForPredict={handleGlobePredict}
             activeLocation={activeLocation}
-            onLocationChange={setActiveLocation}
+            onLocationChange={handleLocationTelemetrySync}
             onOpenHistoryModal={() => setActiveTab('historical')}
           />
         ) : activeTab === 'evacuation' ? (
@@ -269,11 +348,7 @@ export default function App() {
             params={params}
             prediction={prediction}
             onBackToDashboard={() => setActiveTab('dashboard')}
-            onLocationChange={(newLoc, newParams, newPred) => {
-              if (newLoc) setActiveLocation(newLoc);
-              if (newParams) setParams(newParams);
-              if (newPred) setPrediction(newPred);
-            }}
+            onLocationChange={handleLocationTelemetrySync}
           />
         ) : activeTab === 'performance' ? (
           /* FULL-PAGE INTERACTIVE MODEL PERFORMANCE & EVALUATION STUDIO */
@@ -295,11 +370,7 @@ export default function App() {
             params={params}
             prediction={prediction}
             onBackToDashboard={() => setActiveTab('dashboard')}
-            onLocationChange={(newLoc, newParams, newPred) => {
-              if (newLoc) setActiveLocation(newLoc);
-              if (newParams) setParams(newParams);
-              if (newPred) setPrediction(newPred);
-            }}
+            onLocationChange={handleLocationTelemetrySync}
           />
         ) : activeTab === 'explainer' ? (
           /* FULL-PAGE AI EXPLAINER & EVACUATION PROTOCOLS + SYLLABUS AUDIT (CO4 | L6) */
@@ -394,6 +465,7 @@ export default function App() {
                   stations={stations}
                   onSelectStation={handleSelectStation}
                   onOpenMiraMap={() => setActiveTab('map')}
+                  activeLocation={activeLocation}
                 />
 
                 <div className="bottom-split-grid">
@@ -421,11 +493,7 @@ export default function App() {
         currentLocation={activeLocation}
         params={params}
         prediction={prediction}
-        onLocationChange={(newLoc, newParams, newPred) => {
-          if (newLoc) setActiveLocation(newLoc);
-          if (newParams) setParams(newParams);
-          if (newPred) setPrediction(newPred);
-        }}
+        onLocationChange={handleLocationTelemetrySync}
       />
 
       {/* DEDICATED PWA & MOBILE/PC APP INSTALLATION MODAL */}

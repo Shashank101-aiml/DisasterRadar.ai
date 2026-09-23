@@ -15,14 +15,6 @@ export default function InputParameters({
     onChange(field, value);
   };
 
-  // Preset quick locations
-  const presets = [
-    { label: 'Mira Bhayandar', name: 'Mira Bhayandar, India', lat: 19.2952, lng: 72.8544 },
-    { label: 'Mumbai', name: 'Mumbai, India', lat: 19.0760, lng: 72.8777 },
-    { label: 'Bengaluru', name: 'Bengaluru, India', lat: 12.9716, lng: 77.5946 },
-    { label: 'Chennai', name: 'Chennai, India', lat: 13.0827, lng: 80.2707 }
-  ];
-
   // 2 Ways to fetch live Open-Meteo Weather:
   // Way 1: Based on direct Coordinates (lat & lng)
   // Way 2: Based on Location / City Name
@@ -53,8 +45,10 @@ export default function InputParameters({
         if (liveData.longitude !== undefined) onChange('longitude', liveData.longitude);
         if (liveData.location) onChange('location', liveData.location);
 
-        setSyncMessage(`Live data synced from Open-Meteo (${liveData.rainfall24h}mm 24h rain)`);
-        setTimeout(() => setSyncMessage(null), 4000);
+        const currRain = liveData.currentRainfall !== undefined ? liveData.currentRainfall : 0;
+        const rainStatus = currRain === 0 ? '☀️ 0.0 mm/h (Dry / No Rain)' : `🌧️ ${currRain} mm/h Rain`;
+        setSyncMessage(`Live synced: ${rainStatus} • Past 24h: ${liveData.rainfall24h}mm`);
+        setTimeout(() => setSyncMessage(null), 5000);
       } else {
         setSyncMessage('Could not retrieve live data. Using current values.');
         setTimeout(() => setSyncMessage(null), 4000);
@@ -73,6 +67,71 @@ export default function InputParameters({
     onChange('latitude', p.lat);
     onChange('longitude', p.lng);
     handleSyncLiveWeather(p.lat, p.lng, p.name);
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setSyncMessage('Geolocation is not supported by your browser.');
+      setTimeout(() => setSyncMessage(null), 3000);
+      return;
+    }
+    setIsSyncing(true);
+    setSyncMessage('Reading your device GPS/Wi-Fi location...');
+
+    const onGeoSuccess = async (pos) => {
+      const lat = parseFloat(pos.coords.latitude.toFixed(4));
+      const lng = parseFloat(pos.coords.longitude.toFixed(4));
+      onChange('latitude', lat);
+      onChange('longitude', lng);
+
+      // Reverse-geocode to get real place/town name
+      let placeName = `Device Location (${lat}, ${lng})`;
+      try {
+        const nomUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
+        const nRes = await fetch(nomUrl, { headers: { 'User-Agent': 'DisasterRadar-FloodRiskAI/1.0' } });
+        if (nRes.ok) {
+          const nData = await nRes.json();
+          const addr = nData.address || {};
+          const cityOrTown = addr.city || addr.town || addr.suburb || addr.village || addr.county || nData.display_name.split(',')[0];
+          const stateOrCountry = addr.state || addr.country || '';
+          placeName = `${cityOrTown}, ${stateOrCountry}`.trim().replace(/^,|,$/g, '');
+        }
+      } catch (e) {
+        console.warn('Reverse geocoding error:', e);
+      }
+
+      onChange('location', placeName);
+      await handleSyncLiveWeather(lat, lng, placeName);
+      setSyncMessage(`📍 Locked to device: ${placeName}`);
+      setTimeout(() => setSyncMessage(null), 5000);
+    };
+
+    const onGeoError = (err) => {
+      console.warn('GPS initial attempt error:', err.message, 'Retrying with standard Wi-Fi mode...');
+      // 2nd stage: standard accuracy without requiring satellite hardware
+      navigator.geolocation.getCurrentPosition(
+        onGeoSuccess,
+        (secondErr) => {
+          setIsSyncing(false);
+          let reason = secondErr.message;
+          if (secondErr.code === 1) {
+            reason = '⚠️ Permission blocked. Click the 🔒 icon in your browser URL bar and set Location to "Allow".';
+          } else if (secondErr.code === 2) {
+            reason = '⚠️ Position unavailable. Enable "Location" in Windows Settings.';
+          } else if (secondErr.code === 3) {
+            reason = '⚠️ Location timed out. Retrying...';
+          }
+          setSyncMessage(reason);
+        },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(onGeoSuccess, onGeoError, {
+      enableHighAccuracy: true,
+      timeout: 5000,
+      maximumAge: 0
+    });
   };
 
   return (
@@ -103,34 +162,82 @@ export default function InputParameters({
 
       {/* LOCATION SELECTION: 2 WAYS PRESENT */}
       <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px', marginBottom: '14px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f8fafc' }}>
             📍 Location (City Name or Coords):
           </span>
-          <button
-            type="button"
-            onClick={() => handleSyncLiveWeather()}
-            disabled={isSyncing}
-            style={{
-              background: isSyncing ? '#475569' : '#0284c7',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '5px',
-              padding: '4px 10px',
-              fontSize: '0.74rem',
-              fontWeight: 700,
-              cursor: isSyncing ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px'
-            }}
-            title="Fetch real live rainfall, humidity, and temperature from Open-Meteo"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-            </svg>
-            {isSyncing ? 'Syncing...' : '⚡ Sync Open-Meteo'}
-          </button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={isSyncing}
+              style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                borderRadius: '5px',
+                padding: '4px 9px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: isSyncing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Detect my current live GPS coordinates and fetch real weather"
+            >
+              📍 My Location
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange('rainfall24h', 0);
+                onChange('rainfall72h', 0);
+                setSyncMessage('Rainfall set to 0.0 mm (Completely Dry / Clear)');
+                setTimeout(() => setSyncMessage(null), 4000);
+              }}
+              style={{
+                background: 'rgba(16, 185, 129, 0.12)',
+                color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                borderRadius: '5px',
+                padding: '4px 9px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Force rainfall to 0.0 mm if your location currently has no rain"
+            >
+              ☀️ 0 mm (Dry)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSyncLiveWeather()}
+              disabled={isSyncing}
+              style={{
+                background: isSyncing ? '#475569' : '#0284c7',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '5px',
+                padding: '4px 10px',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: isSyncing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+              title="Fetch real live rainfall, humidity, and temperature from Open-Meteo"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              {isSyncing ? 'Syncing...' : '⚡ Sync Live'}
+            </button>
+          </div>
         </div>
 
         {/* Way 2: City / Location Name Input */}
@@ -162,33 +269,6 @@ export default function InputParameters({
           >
             Find
           </button>
-        </div>
-
-        {/* Quick 1-Click Presets */}
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          {presets.map(p => {
-            const isSelected = params.location && params.location.includes(p.label);
-            return (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => handleSelectPreset(p)}
-                style={{
-                  fontSize: '0.72rem',
-                  background: isSelected ? '#0284c7' : '#0b1120',
-                  border: isSelected ? '1px solid #0284c7' : '1px solid #1e293b',
-                  borderRadius: '12px',
-                  padding: '3px 10px',
-                  color: isSelected ? '#ffffff' : '#94a3b8',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {p.label}
-              </button>
-            );
-          })}
         </div>
 
         {syncMessage && (

@@ -77,3 +77,88 @@ class PredictionCompareResponse(BaseModel):
     predictions: List[ModelPrediction]
     agreement: str
     probabilityDelta: float
+
+class ActiveAlertItem(BaseModel):
+    id: str
+    location: str
+    latitude: float
+    longitude: float
+    probability: float
+    riskLevel: str
+    alertTier: str
+    headline: str
+    actionRequired: str
+    rainfall24h: float
+    rainfall72h: float
+    waterDepthEstCm: float
+    timestamp: str
+
+class AlertsListResponse(BaseModel):
+    totalActive: int
+    threshold: float
+    alerts: List[ActiveAlertItem]
+    generatedAt: str
+
+class CitizenReportCreate(BaseModel):
+    location: str
+    latitude: float
+    longitude: float
+    waterDepthCm: float = Field(..., ge=0, le=1000)
+    severity: str = Field("MODERATE", description="LOW, MODERATE, HIGH, CRITICAL")
+    description: str
+    reporterName: Optional[str] = "Anonymous Citizen"
+    photoUrl: Optional[str] = None
+
+class CitizenReportResponse(BaseModel):
+    id: int
+    timestamp: str
+    location: str
+    latitude: float
+    longitude: float
+    waterDepthCm: float
+    severity: str
+    description: str
+    reporterName: str
+    photoUrl: Optional[str]
+    status: str
+
+class TelemetryIngestRequest(BaseModel):
+    stationId: str
+    stationName: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    rainfall24h: float
+    rainfall72h: float
+    elevation: Optional[float] = 15.0
+    waterLevelMeters: float = 0.0
+    temperature: Optional[float] = 26.0
+    humidity: Optional[float] = 75.0
+    status: Optional[str] = "ONLINE"
+
+class TelemetryIngestResponse(BaseModel):
+    status: str
+    stationId: str
+    recordedAt: str
+    evaluatedRiskProbability: float
+    evaluatedRiskLevel: str
+
+class UserRegisterRequest(BaseModel):
+    email: str
+    password: str
+    fullName: Optional[str] = "Citizen User"
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    fullName: str
+    createdAt: str
+
+class AuthTokenResponse(BaseModel):
+    accessToken: str
+    tokenType: str = "bearer"
+    user: UserResponse
+

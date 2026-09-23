@@ -71,29 +71,15 @@ class Settings:
     DECISION_THRESHOLD: float = float(os.getenv("DECISION_THRESHOLD", 0.55))
 
     def get_api_status(self) -> dict:
-        """Returns connection readiness status for all external geospatial providers."""
-        return {
-            "open_meteo": {
-                "active": True,  # Free without key
-                "has_custom_key": bool(self.OPEN_METEO_API_KEY),
-                "type": "weather_precipitation"
-            },
-            "copernicus_sentinel_hub": {
-                "configured": bool(self.COPERNICUS_CLIENT_ID and self.COPERNICUS_CLIENT_SECRET),
-                "type": "dem_elevation_spectral_indices"
-            },
-            "google_earth_engine": {
-                "configured": bool(self.GEE_PROJECT_ID and (self.GEE_SERVICE_ACCOUNT_EMAIL or self.GEE_SERVICE_ACCOUNT_JSON)),
-                "type": "dynamic_world_urbanization"
-            },
-            "openstreetmap": {
-                "active": True,
-                "type": "infrastructure_drainage_proxies"
-            },
-            "mapbox": {
-                "configured": bool(self.MAPBOX_ACCESS_TOKEN),
-                "type": "satellite_basemap"
+        """Returns connection readiness status for all external geospatial providers via APIKeyHandlers."""
+        try:
+            from services.api_key_handlers import key_handlers
+            return key_handlers.get_all_handlers_status()
+        except Exception as e:
+            return {
+                "gateway_status": "KEYLESS_FALLBACK_ACTIVE",
+                "active_mode": "100% KEYLESS_FREE_ENGINE",
+                "error": str(e)
             }
-        }
 
 settings = Settings()

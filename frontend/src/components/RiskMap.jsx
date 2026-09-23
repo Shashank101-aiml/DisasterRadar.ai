@@ -2,17 +2,21 @@ import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-export default function RiskMap({ stations, onSelectStation, onOpenMiraMap }) {
+export default function RiskMap({ stations, onSelectStation, onOpenMiraMap, activeLocation }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const activeMarkerRef = useRef(null);
+
+  const initialLat = activeLocation?.lat || 12.9716;
+  const initialLng = activeLocation?.lng || 77.5946;
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return; // Prevent double initialization in React StrictMode
 
     const map = L.map(mapContainerRef.current, {
-      center: [12.9716, 77.5946],
-      zoom: 10,
+      center: [initialLat, initialLng],
+      zoom: 11,
       zoomControl: true,
       attributionControl: false
     });
@@ -23,7 +27,6 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap }) {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-
     mapInstanceRef.current = map;
 
     return () => {
@@ -31,6 +34,34 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap }) {
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // Pan to activeLocation whenever it changes
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !activeLocation || !activeLocation.lat || !activeLocation.lng) return;
+    map.flyTo([activeLocation.lat, activeLocation.lng], 11, { duration: 1.0 });
+
+    if (activeMarkerRef.current) {
+      activeMarkerRef.current.remove();
+    }
+
+    const activeIcon = L.divIcon({
+      className: 'active-loc-beacon',
+      html: `
+        <div style="position:relative; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">
+          <div style="position:absolute; width:30px; height:30px; border-radius:50%; background:#38bdf8; opacity:0.4; animation:pulse 1.8s infinite;"></div>
+          <div style="width:14px; height:14px; border-radius:50%; background:#0284c7; border:2px solid #ffffff; box-shadow:0 0 10px #38bdf8;"></div>
+        </div>
+      `,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15]
+    });
+
+    activeMarkerRef.current = L.marker([activeLocation.lat, activeLocation.lng], { icon: activeIcon })
+      .addTo(map)
+      .bindPopup(`<strong>📍 Active Target Location</strong><br/>${activeLocation.name}`)
+      .openPopup();
+  }, [activeLocation?.lat, activeLocation?.lng, activeLocation?.name]);
 
   // Update Markers whenever stations change
   useEffect(() => {
@@ -116,8 +147,41 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap }) {
 
       </div>
 
-      <div className="map-container-wrapper">
+      <div className="map-container-wrapper" style={{ position: 'relative' }}>
         <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+
+        {(!stations || stations.length === 0) && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(11, 17, 32, 0.88)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            color: '#f8fafc',
+            textAlign: 'center',
+            padding: '20px'
+          }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              border: '3px solid rgba(56, 189, 248, 0.2)',
+              borderTop: '3px solid #38bdf8',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              marginBottom: '12px'
+            }} />
+            <strong style={{ fontSize: '0.85rem', color: '#f8fafc', letterSpacing: '0.4px' }}>
+              INGESTING REAL-TIME REGIONAL HYDRO-STATIONS
+            </strong>
+            <span style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '4px' }}>
+              Querying multi-station precipitation, Copernicus DEM and XGBoost inference...
+            </span>
+          </div>
+        )}
 
         {/* Floating Legend */}
         <div className="map-legend-box">

@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
-export default function Header({ onToggleSidebar, onOpenAlerts, onOpenProfile, onDownloadApp }) {
+export default function Header({
+  onToggleSidebar,
+  onOpenAlerts,
+  onOpenProfile,
+  onDownloadApp,
+  activeLocation,
+  isFetchingRealTelemetry
+}) {
   const [time, setTime] = useState('');
   const [date, setDate] = useState('');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -66,7 +73,38 @@ export default function Header({ onToggleSidebar, onOpenAlerts, onOpenProfile, o
         </div>
       </div>
 
-      <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+      <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+        {/* Active Target Real-Time Location Pill */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: '20px',
+          padding: '4px 12px',
+          fontSize: '0.74rem'
+        }}>
+          <span style={{ color: '#10b981', display: 'flex', alignItems: 'center' }}>📍</span>
+          <span style={{ fontWeight: 700, color: '#f8fafc' }}>
+            {activeLocation?.name?.split(',')[0] || 'Live Location'}
+          </span>
+          {activeLocation?.lat !== undefined && (
+            <span style={{ fontSize: '0.68rem', color: '#38bdf8', fontFamily: 'JetBrains Mono, monospace' }}>
+              ({Number(activeLocation.lat).toFixed(2)}°, {Number(activeLocation.lng).toFixed(2)}°)
+            </span>
+          )}
+          {isFetchingRealTelemetry ? (
+            <span style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span className="live-pulsing-dot" style={{ width: '6px', height: '6px', background: '#f59e0b' }} />
+              Syncing Real Data...
+            </span>
+          ) : (
+            <span style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 600 }}>
+              • Real-Time Active
+            </span>
+          )}
+        </div>
         {/* Live Satellite Ingestion / Offline Telemetry Status Badge */}
         <div
           style={{

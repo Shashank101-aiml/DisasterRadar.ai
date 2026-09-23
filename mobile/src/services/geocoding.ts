@@ -73,6 +73,9 @@ export async function geocodeLocation(query: string): Promise<GeocodeMatch[]> {
 export interface LiveTelemetry {
   status: 'live' | 'fallback';
   source: string;
+  currentRainfall?: number;
+  isRaining?: boolean;
+  weatherCondition?: string;
   rainfall24h: number;
   rainfall72h: number;
   temperature: number;
@@ -93,6 +96,7 @@ export async function fetchGlobalLiveTelemetry(lat: number, lng: number): Promis
       params: {
         latitude: lat,
         longitude: lng,
+        current: 'precipitation,rain,showers,weather_code,temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m',
         hourly: 'precipitation,rain,temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m',
         past_days: 3,
         forecast_days: 1,
@@ -106,26 +110,41 @@ export async function fetchGlobalLiveTelemetry(lat: number, lng: number): Promis
     throw new Error('Live telemetry unavailable — both weather and elevation lookups failed.');
   }
 
-  let r24 = 0, r72 = 0, temp = 0, hum = 0, press = 0, wind = 0, elev = 0;
+  let currRain = 0, r24 = 0, r72 = 0, temp = 0, hum = 0, press = 0, wind = 0, elev = 0;
 
   if (weatherRes.status === 'fulfilled') {
-    const hourly = weatherRes.value.data?.hourly ?? {};
+    const data = weatherRes.value.data ?? {};
+    const curr = data.current ?? {};
+    currRain = Number(curr.precipitation ?? 0);
+
+    const hourly = data.hourly ?? {};
+    const hTimes: string[] = hourly.time ?? [];
     const precip: number[] = hourly.precipitation ?? hourly.rain ?? [];
-    if (precip.length >= 72) {
-      r72 = precip.slice(-72).reduce((a, b) => a + (b || 0), 0);
-      r24 = precip.slice(-24).reduce((a, b) => a + (b || 0), 0);
-    } else if (precip.length > 0) {
-      r72 = precip.reduce((a, b) => a + (b || 0), 0);
-      r24 = precip.slice(-Math.min(24, precip.length)).reduce((a, b) => a + (b || 0), 0);
+
+    const currTimeStr = String(curr.time ?? '').slice(0, 13);
+    let currIdx = -1;
+    if (currTimeStr && hTimes.length > 0) {
+      currIdx = hTimes.findIndex((t) => t.startsWith(currTimeStr));
     }
+    if (currIdx === -1) {
+      currIdx = Math.min(72, Math.max(0, precip.length - 1));
+    }
+
+    const past24Slice = precip.slice(Math.max(0, currIdx - 23), currIdx + 1);
+    const past72Slice = precip.slice(Math.max(0, currIdx - 71), currIdx + 1);
+
+    r24 = past24Slice.reduce((a, b) => a + (b || 0), 0);
+    r72 = past72Slice.reduce((a, b) => a + (b || 0), 0);
+
     const temps: number[] = hourly.temperature_2m ?? [];
     const hums: number[] = hourly.relative_humidity_2m ?? [];
     const presses: number[] = hourly.surface_pressure ?? [];
     const winds: number[] = hourly.wind_speed_10m ?? [];
-    temp = temps.at(-1) ?? 0;
-    hum = hums.at(-1) ?? 0;
-    press = presses.at(-1) ?? 0;
-    wind = winds.at(-1) ?? 0;
+
+    temp = Number(curr.temperature_2m ?? (temps.at(-1) ?? 25));
+    hum = Number(curr.relative_humidity_2m ?? (hums.at(-1) ?? 65));
+    press = Number(curr.surface_pressure ?? (presses.at(-1) ?? 1012));
+    wind = Number(curr.wind_speed_10m ?? (winds.at(-1) ?? 12));
   }
 
   if (elevRes.status === 'fulfilled') {
@@ -135,6 +154,9 @@ export async function fetchGlobalLiveTelemetry(lat: number, lng: number): Promis
   return {
     status: weatherRes.status === 'fulfilled' ? 'live' : 'fallback',
     source: 'Open-Meteo Global Satellite & DEM',
+    currentRainfall: Math.round(currRain * 10) / 10,
+    isRaining: currRain > 0,
+    weatherCondition: currRain > 0 ? `Rain (${currRain} mm/h)` : 'Clear / Dry',
     rainfall24h: Math.round(r24 * 10) / 10,
     rainfall72h: Math.round(r72 * 10) / 10,
     temperature: Math.round(temp * 10) / 10,

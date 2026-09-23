@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { geocodeLocation, fetchGlobalLiveTelemetry, predictFloodRisk, compareModelPredictions } from '../services/api';
+import {
+  geocodeLocation,
+  fetchGlobalLiveTelemetry,
+  predictFloodRisk,
+  compareModelPredictions,
+  reverseGeocodeCoords,
+  submitGroundTruthReport
+} from '../services/api';
 
 export default function PredictRiskView({
   currentLocation,
@@ -9,18 +16,18 @@ export default function PredictRiskView({
   onLocationChange
 }) {
   const [params, setParams] = useState(initialParams || {
-    rainfall24h: 85,
-    rainfall72h: 190,
-    temperature: 25,
-    humidity: 82,
-    windSpeed: 15,
-    pressure: 1008,
-    elevation: 20,
-    latitude: 19.295,
-    longitude: 72.854,
-    location: 'Mira Bhayandar, Maharashtra, India',
+    rainfall24h: 0.0,
+    rainfall72h: 0.0,
+    temperature: 21.2,
+    humidity: 78,
+    windSpeed: 12,
+    pressure: 910,
+    elevation: 897,
+    latitude: currentLocation?.lat || 12.9603,
+    longitude: currentLocation?.lng || 77.7151,
+    location: currentLocation?.name || 'Bengaluru, Karnataka',
     drainageCapacity: 45,
-    ndwi: 0.22
+    ndwi: 0.12
   });
 
   const [locationQuery, setLocationQuery] = useState('');
@@ -32,24 +39,129 @@ export default function PredictRiskView({
   const [modelComparison, setModelComparison] = useState(null);
   const [isComparing, setIsComparing] = useState(false);
   const [compareError, setCompareError] = useState(null);
+  const [gpsStatus, setGpsStatus] = useState(null);
+  const [groundTruthState, setGroundTruthState] = useState({ verified: false, condition: null });
 
-  // Quick 1-click Preset Cities
-  const presetCities = [
-    { name: 'Mira Bhayandar', state: 'Maharashtra', country: 'India', lat: 19.295, lng: 72.854 },
-    { name: 'Mumbai', state: 'Maharashtra', country: 'India', lat: 19.076, lng: 72.878 },
-    { name: 'Bengaluru', state: 'Karnataka', country: 'India', lat: 12.972, lng: 77.595 },
-    { name: 'Chennai', state: 'Tamil Nadu', country: 'India', lat: 13.083, lng: 80.271 },
-    { name: 'Kolkata', state: 'West Bengal', country: 'India', lat: 22.573, lng: 88.364 },
-    { name: 'Delhi', state: 'NCR', country: 'India', lat: 28.614, lng: 77.209 },
-    { name: 'Tokyo', state: 'Tokyo', country: 'Japan', lat: 35.676, lng: 139.650 },
-    { name: 'London', state: 'Greater London', country: 'UK', lat: 51.507, lng: -0.128 }
-  ];
+  // Option A: 1-Tap Ground-Truth Verification (Waze-style crowdsourced meteorological calibration)
+  const handleGroundTruthVerify = async (isRaining) => {
+    setGroundTruthState({ verified: true, condition: isRaining ? 'RAIN' : 'DRY' });
+    const r24 = isRaining ? 25.0 : 0.0;
+    const r72 = isRaining ? 55.0 : 0.0;
+    const updated = {
+      ...params,
+      rainfall24h: r24,
+      rainfall72h: r72
+    };
+    setParams(updated);
 
-  // Run initial prediction if none
-  useEffect(() => {
-    if (!prediction) {
-      handleRunPrediction(params);
+    try {
+      await submitGroundTruthReport({
+        location: params.location,
+        latitude: params.latitude,
+        longitude: params.longitude,
+        isRaining: isRaining,
+        observedCondition: isRaining ? 'ACTIVE_RAIN_REPORTED' : 'USER_VERIFIED_DRY',
+        rainfallOverride: isRaining ? 5.0 : 0.0
+      });
+    } catch (e) {
+      console.warn('Ground truth submission error:', e);
     }
+
+    await handleRunPrediction(updated);
+  };
+
+  // Sync with parent props if updated externally
+  useEffect(() => {
+    if (initialParams) {
+      setParams(initialParams);
+    }
+  }, [initialParams]);
+
+  useEffect(() => {
+    if (initialPrediction) {
+      setPrediction(initialPrediction);
+    }
+  }, [initialPrediction]);
+
+  const handleDetectDeviceGPS = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setGpsStatus('GPS not supported by browser');
+      if (!prediction) handleRunPrediction(params);
+      return;
+    }
+    setIsLoading(true);
+    setGpsStatus('Acquiring device GPS...');
+
+    const onPosSuccess = async (pos) => {
+      const lat = parseFloat(pos.coords.latitude.toFixed(4));
+      const lng = parseFloat(pos.coords.longitude.toFixed(4));
+      setGpsStatus('Resolving location...');
+
+      let placeName = `Device Location (${lat}, ${lng})`;
+      let country = '';
+      try {
+        const geoInfo = await reverseGeocodeCoords(lat, lng);
+        if (geoInfo && geoInfo.name) {
+          placeName = geoInfo.name;
+          country = geoInfo.country || '';
+        }
+      } catch (e) {
+        console.warn('Reverse geocode error:', e);
+      }
+
+      setGpsStatus(`Syncing weather for ${placeName}...`);
+      try {
+        const telemetry = await fetchGlobalLiveTelemetry(lat, lng);
+        const updated = {
+          ...params,
+          location: placeName,
+          latitude: lat,
+          longitude: lng,
+          elevation: telemetry.elevation,
+          rainfall24h: telemetry.rainfall24h,
+          rainfall72h: telemetry.rainfall72h,
+          temperature: telemetry.temperature,
+          humidity: telemetry.humidity,
+          pressure: telemetry.pressure,
+          windSpeed: telemetry.windSpeed
+        };
+        setParams(updated);
+        const currRain = telemetry.currentRainfall !== undefined ? telemetry.currentRainfall : 0;
+        const rainLabel = currRain === 0 ? '☀️ 0.0 mm/h (Dry)' : `🌧️ ${currRain} mm/h`;
+        setGpsStatus(`📍 ${placeName.split(',')[0]} (${rainLabel})`);
+        await handleRunPrediction(updated, { name: placeName, country, lat, lng });
+      } catch (err) {
+        console.error('GPS telemetry error:', err);
+      } finally {
+        setIsLoading(false);
+        setTimeout(() => setGpsStatus(null), 5000);
+      }
+    };
+
+    const onPosError = (err) => {
+      console.warn('Geolocation high-accuracy failed, falling back:', err);
+      navigator.geolocation.getCurrentPosition(
+        onPosSuccess,
+        (fallbackErr) => {
+          setIsLoading(false);
+          setGpsStatus(`GPS unavailable (${fallbackErr.message})`);
+          setTimeout(() => setGpsStatus(null), 5000);
+          if (!prediction) handleRunPrediction(params);
+        },
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onPosSuccess,
+      onPosError,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
+  // Automatically fetch real device location on mount
+  useEffect(() => {
+    handleDetectDeviceGPS();
   }, []);
 
   // Debounced location search
@@ -261,26 +373,58 @@ export default function PredictRiskView({
             </div>
           </div>
 
-          {/* Quick Preset Buttons */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            {presetCities.map(c => (
-              <button
-                key={c.name}
-                onClick={() => handleSelectLocation(c)}
-                style={{
-                  background: params.location.includes(c.name) ? '#0284c7' : '#0f172a',
-                  color: params.location.includes(c.name) ? '#ffffff' : '#cbd5e1',
-                  border: '1px solid rgba(56, 189, 248, 0.22)',
-                  borderRadius: '16px',
-                  padding: '4px 10px',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                {c.name}
-              </button>
-            ))}
+          {/* Live Device Location Auto-Detect Button */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              onClick={handleDetectDeviceGPS}
+              disabled={isLoading}
+              style={{
+                background: '#059669',
+                color: '#ffffff',
+                border: '1px solid #10b981',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 10px rgba(5, 150, 105, 0.3)'
+              }}
+              title="Lock onto your device's exact GPS coordinates and pull real-time weather"
+            >
+              📍 {gpsStatus || 'Sync My Device Location'}
+            </button>
+
+            <button
+              onClick={() => {
+                const updated = {
+                  ...params,
+                  rainfall24h: 0,
+                  rainfall72h: 0
+                };
+                setParams(updated);
+                handleRunPrediction(updated);
+              }}
+              style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title="Force rainfall to 0.0 mm if your location currently has no rain"
+            >
+              ☀️ 0 mm (Dry)
+            </button>
           </div>
         </div>
 
@@ -390,6 +534,83 @@ export default function PredictRiskView({
                   <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{s.desc}</div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Option A: 1-Tap Ground-Truth Calibration Widget */}
+          <div style={{
+            background: groundTruthState.verified ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+            border: groundTruthState.verified ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '10px',
+            padding: '12px 14px',
+            marginBottom: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.9rem' }}>🎯</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.4px' }}>
+                  GROUND-TRUTH CALIBRATION (OPTION A)
+                </span>
+              </div>
+              {groundTruthState.verified && (
+                <span style={{
+                  fontSize: '0.68rem',
+                  background: '#10b981',
+                  color: '#0f172a',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: '4px'
+                }}>
+                  ✓ GROUND-TRUTH VERIFIED
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '10px', lineHeight: 1.4 }}>
+              Are skies dry outside? Satellites often detect trace clouds/virga. Calibrate telemetry immediately to ground reality:
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <button
+                onClick={() => handleGroundTruthVerify(false)}
+                style={{
+                  background: groundTruthState.condition === 'DRY' ? '#10b981' : 'rgba(16, 185, 129, 0.15)',
+                  color: groundTruthState.condition === 'DRY' ? '#0f172a' : '#34d399',
+                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+                title="Calibrate model: Verify zero rainfall on ground and recalculate flood probability"
+              >
+                ☀️ Bone Dry (0 mm)
+              </button>
+              <button
+                onClick={() => handleGroundTruthVerify(true)}
+                style={{
+                  background: groundTruthState.condition === 'RAIN' ? '#38bdf8' : 'rgba(56, 189, 248, 0.15)',
+                  color: groundTruthState.condition === 'RAIN' ? '#0f172a' : '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+                title="Calibrate model: Verify active rain on ground and recalculate flood probability"
+              >
+                🌧️ Active Rain
+              </button>
             </div>
           </div>
 

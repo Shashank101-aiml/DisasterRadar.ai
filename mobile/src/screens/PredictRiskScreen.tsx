@@ -2,22 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Zap, MapPin } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { colors } from '../constants/colors';
 import { useAppStore } from '../store/useAppStore';
 import { predictFloodRisk, compareModelPredictions } from '../services/api';
 import { geocodeLocation, fetchGlobalLiveTelemetry, type GeocodeMatch } from '../services/geocoding';
 import type { PredictionCompareResponse } from '../types/api';
-
-const PRESET_CITIES = [
-  { name: 'Mira Bhayandar', state: 'Maharashtra', country: 'India', lat: 19.295, lng: 72.854 },
-  { name: 'Mumbai', state: 'Maharashtra', country: 'India', lat: 19.076, lng: 72.878 },
-  { name: 'Bengaluru', state: 'Karnataka', country: 'India', lat: 12.972, lng: 77.595 },
-  { name: 'Chennai', state: 'Tamil Nadu', country: 'India', lat: 13.083, lng: 80.271 },
-  { name: 'Kolkata', state: 'West Bengal', country: 'India', lat: 22.573, lng: 88.364 },
-  { name: 'Delhi', state: 'NCR', country: 'India', lat: 28.614, lng: 77.209 },
-  { name: 'Tokyo', state: 'Tokyo', country: 'Japan', lat: 35.676, lng: 139.650 },
-  { name: 'London', state: 'Greater London', country: 'UK', lat: 51.507, lng: -0.128 }
-];
 
 const SCENARIOS = [
   { key: 'cloudburst', label: '⛈️ Cloudburst Shock', desc: '145mm 24h Rain', apply: (p: any) => ({ ...p, rainfall24h: 145, rainfall72h: 180, humidity: 92, windSpeed: 28 }) },
@@ -91,6 +81,41 @@ export default function PredictRiskScreen() {
     }
   };
 
+  const [gpsStatus, setGpsStatus] = useState<string | null>(null);
+
+  const handleDeviceGPS = async () => {
+    setIsLoading(true);
+    setGpsStatus('Acquiring hardware GPS...');
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setGpsStatus('GPS permission denied');
+        setIsLoading(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const lat = parseFloat(loc.coords.latitude.toFixed(4));
+      const lng = parseFloat(loc.coords.longitude.toFixed(4));
+
+      let locName = `Device Location (${lat}, ${lng})`;
+      try {
+        const rev = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (rev && rev.length > 0) {
+          const r = rev[0];
+          locName = `${r.city || r.district || r.subregion || 'Current Area'}, ${r.region || r.country || ''}`.trim().replace(/^,|,$/g, '');
+        }
+      } catch (e) {}
+
+      setGpsStatus(`Locked: ${locName}`);
+      await handleSelectLocation({ name: locName, lat, lng });
+    } catch (e: any) {
+      setGpsStatus(`GPS error: ${e.message}`);
+      setIsLoading(false);
+    } finally {
+      setTimeout(() => setGpsStatus(null), 4000);
+    }
+  };
+
   const handleApplyScenario = (key: string) => {
     setSelectedScenario(key);
     const scenario = SCENARIOS.find((s) => s.key === key)!;
@@ -143,15 +168,20 @@ export default function PredictRiskScreen() {
           </View>
         </View>
 
-        <View style={styles.presetRow}>
-          {PRESET_CITIES.map((c) => {
-            const isSelected = params.location?.includes(c.name);
-            return (
-              <TouchableOpacity key={c.name} onPress={() => handleSelectLocation(c)} style={[styles.presetChip, isSelected && styles.presetChipActive]}>
-                <Text style={[styles.presetChipText, isSelected && styles.presetChipTextActive]}>{c.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <TouchableOpacity
+            style={styles.deviceGpsBtn}
+            onPress={handleDeviceGPS}
+            disabled={isLoading}
+          >
+            <MapPin size={14} color="#fff" />
+            <Text style={styles.deviceGpsBtnText}>📍 Use My Live Device GPS</Text>
+          </TouchableOpacity>
+          {gpsStatus && (
+            <Text style={{ color: '#38bdf8', fontSize: 11, flex: 1 }} numberOfLines={1}>
+              {gpsStatus}
+            </Text>
+          )}
         </View>
 
         <TextInput
@@ -361,11 +391,16 @@ const styles = StyleSheet.create({
   locationBar: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderAccent, borderRadius: 14, padding: 16, marginBottom: 16 },
   locationName: { fontSize: 15, fontWeight: '800', color: colors.text },
   locationCoords: { fontSize: 11, color: colors.accent, marginTop: 2 },
-  presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
-  presetChip: { backgroundColor: colors.panelAlt, borderWidth: 1, borderColor: 'rgba(56,189,248,0.22)', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
-  presetChipActive: { backgroundColor: colors.accentDark },
-  presetChipText: { fontSize: 11, color: '#cbd5e1', fontWeight: '600' },
-  presetChipTextActive: { color: '#fff' },
+  deviceGpsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#059669',
+    borderRadius: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 12
+  },
+  deviceGpsBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 12 },
   searchInput: {
     marginTop: 12, backgroundColor: colors.panelAlt, borderWidth: 1, borderColor: 'rgba(56,189,248,0.25)',
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, color: colors.text

@@ -4,6 +4,7 @@ import { RefreshCw, MapPin } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import type { PredictionInput } from '../../types/api';
 import { fetchLiveWeather } from '../../services/api';
+import * as Location from 'expo-location';
 
 interface Props {
   params: PredictionInput;
@@ -14,13 +15,6 @@ interface Props {
    *  was selected) so the locally-cached row text resyncs. Typing does NOT bump this. */
   externalVersion?: number;
 }
-
-const PRESETS = [
-  { label: 'Mira Bhayandar', name: 'Mira Bhayandar, India', lat: 19.2952, lng: 72.8544 },
-  { label: 'Mumbai', name: 'Mumbai, India', lat: 19.0760, lng: 72.8777 },
-  { label: 'Bengaluru', name: 'Bengaluru, India', lat: 12.9716, lng: 77.5946 },
-  { label: 'Chennai', name: 'Chennai, India', lat: 13.0827, lng: 80.2707 }
-];
 
 const FIELDS: Array<{ key: keyof PredictionInput; label: string; unit: string; step: string }> = [
   { key: 'rainfall24h', label: 'Rainfall (24h)', unit: 'mm', step: '0.1' },
@@ -93,11 +87,41 @@ export default function InputParameters({ params, onChange, onPredict, isLoading
     }
   };
 
-  const handleSelectPreset = (p: (typeof PRESETS)[number]) => {
-    onChange('location', p.name);
-    onChange('latitude', String(p.lat));
-    onChange('longitude', String(p.lng));
-    handleSync(p.lat, p.lng, p.name);
+  const handleDeviceGPS = async () => {
+    setIsSyncing(true);
+    setSyncMessage('Requesting device GPS...');
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setSyncMessage('GPS permission denied. Please enable in Settings.');
+        setIsSyncing(false);
+        return;
+      }
+      setSyncMessage('Locking onto satellite GPS coordinates...');
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const lat = parseFloat(loc.coords.latitude.toFixed(4));
+      const lng = parseFloat(loc.coords.longitude.toFixed(4));
+      
+      let locName = `Device GPS (${lat}, ${lng})`;
+      try {
+        const rev = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (rev && rev.length > 0) {
+          const r = rev[0];
+          locName = `${r.city || r.district || r.subregion || 'Current Area'}, ${r.region || r.country || ''}`.trim().replace(/^,|,$/g, '');
+        }
+      } catch (e) {}
+
+      onChange('latitude', String(lat));
+      onChange('longitude', String(lng));
+      onChange('location', locName);
+      await handleSync(lat, lng, locName);
+      setSyncMessage(`📍 Locked to device: ${locName}`);
+    } catch (err: any) {
+      setSyncMessage(`GPS error: ${err.message}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncMessage(null), 5000);
+    }
   };
 
   return (
@@ -108,12 +132,17 @@ export default function InputParameters({ params, onChange, onPredict, isLoading
         <View style={styles.locationHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
             <MapPin size={13} color={colors.text} />
-            <Text style={styles.locationLabel}>Location (City Name or Coords)</Text>
+            <Text style={styles.locationLabel}>Location</Text>
           </View>
-          <TouchableOpacity onPress={() => handleSync()} disabled={isSyncing} style={styles.syncBtn}>
-            {isSyncing ? <ActivityIndicator size="small" color="#fff" /> : <RefreshCw size={12} color="#fff" />}
-            <Text style={styles.syncBtnText}>{isSyncing ? 'Syncing...' : 'Sync Open-Meteo'}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity onPress={handleDeviceGPS} disabled={isSyncing} style={[styles.syncBtn, { backgroundColor: '#10b981' }]}>
+              <Text style={styles.syncBtnText}>📍 Device GPS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleSync()} disabled={isSyncing} style={styles.syncBtn}>
+              {isSyncing ? <ActivityIndicator size="small" color="#fff" /> : <RefreshCw size={12} color="#fff" />}
+              <Text style={styles.syncBtnText}>{isSyncing ? '...' : 'Sync Live'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.locationInputRow}>
@@ -128,21 +157,6 @@ export default function InputParameters({ params, onChange, onPredict, isLoading
           <TouchableOpacity style={styles.findBtn} onPress={() => handleSync(undefined, undefined, params.location)}>
             <Text style={styles.findBtnText}>Find</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.presetRow}>
-          {PRESETS.map((p) => {
-            const isSelected = params.location?.includes(p.label);
-            return (
-              <TouchableOpacity
-                key={p.label}
-                onPress={() => handleSelectPreset(p)}
-                style={[styles.presetChip, isSelected && styles.presetChipActive]}
-              >
-                <Text style={[styles.presetChipText, isSelected && styles.presetChipTextActive]}>{p.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
         </View>
 
         {syncMessage && <Text style={styles.syncMessage}>✓ {syncMessage}</Text>}

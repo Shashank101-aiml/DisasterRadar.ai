@@ -8,19 +8,6 @@ import {
   predictFloodRisk
 } from '../services/api';
 
-// Preset popular monitoring locations for 1-click quick switching
-const PRESET_LOCATIONS = [
-  { name: 'Mira Bhayandar', country: 'Maharashtra, India', lat: 19.2952, lng: 72.8544 },
-  { name: 'Mumbai', country: 'Maharashtra, India', lat: 19.0760, lng: 72.8777 },
-  { name: 'Bengaluru', country: 'Karnataka, India', lat: 12.9716, lng: 77.5946 },
-  { name: 'Chennai', country: 'Tamil Nadu, India', lat: 13.0827, lng: 80.2707 },
-  { name: 'Mangaluru', country: 'Karnataka, India', lat: 12.9141, lng: 74.8560 },
-  { name: 'Kolkata', country: 'West Bengal, India', lat: 22.5726, lng: 88.3639 },
-  { name: 'Delhi', country: 'India', lat: 28.6139, lng: 77.2090 },
-  { name: 'London', country: 'United Kingdom', lat: 51.5074, lng: -0.1278 },
-  { name: 'Tokyo', country: 'Japan', lat: 35.6762, lng: 139.6503 }
-];
-
 export default function AlertsReportsView({
   currentLocation,
   params,
@@ -38,25 +25,25 @@ export default function AlertsReportsView({
   // Active Location & Telemetry State
   const [activeLoc, setActiveLoc] = useState(() => {
     if (currentLocation && typeof currentLocation === 'object') return currentLocation;
-    if (typeof currentLocation === 'string') return { name: currentLocation, country: '', lat: 19.2952, lng: 72.8544 };
-    return { name: 'Mira Bhayandar', country: 'India', lat: 19.2952, lng: 72.8544 };
+    if (typeof currentLocation === 'string') return { name: currentLocation, country: '', lat: 12.9603, lng: 77.7151 };
+    return { name: 'Bengaluru, Karnataka', country: 'India', lat: 12.9603, lng: 77.7151 };
   });
 
   const [activeTelemetry, setActiveTelemetry] = useState(params || {
-    rainfall24h: 85,
-    rainfall72h: 190,
-    temperature: 25,
-    humidity: 82,
+    rainfall24h: 0.0,
+    rainfall72h: 0.0,
+    temperature: 21.2,
+    humidity: 78,
     windSpeed: 12,
-    pressure: 1005,
-    elevation: 15,
-    latitude: 19.2952,
-    longitude: 72.8544
+    pressure: 910,
+    elevation: 897,
+    latitude: 12.9603,
+    longitude: 77.7151
   });
 
   const [activePrediction, setActivePrediction] = useState(prediction || {
-    probability: 78.4,
-    riskLevel: 'HIGH'
+    probability: 2.5,
+    riskLevel: 'LOW'
   });
 
   // Location Search & Change Panel State
@@ -76,7 +63,7 @@ export default function AlertsReportsView({
   useEffect(() => {
     if (currentLocation) {
       if (typeof currentLocation === 'object') setActiveLoc(currentLocation);
-      else if (typeof currentLocation === 'string') setActiveLoc({ name: currentLocation, country: '', lat: 19.2952, lng: 72.8544 });
+      else if (typeof currentLocation === 'string') setActiveLoc({ name: currentLocation, country: '', lat: 12.9603, lng: 77.7151 });
     }
   }, [currentLocation]);
 
@@ -88,17 +75,17 @@ export default function AlertsReportsView({
     if (prediction) setActivePrediction(prediction);
   }, [prediction]);
 
-  const rawLoc = activeLoc?.name || (typeof activeLoc === 'string' ? activeLoc : 'Mira Bhayandar');
+  const rawLoc = activeLoc?.name || (typeof activeLoc === 'string' ? activeLoc : 'Bengaluru, Karnataka');
   const locName = rawLoc.split(',')[0].trim();
   const locCountry = activeLoc?.country || '';
-  const locLat = activeLoc?.lat !== undefined ? Number(activeLoc.lat) : 19.295;
-  const locLng = activeLoc?.lng !== undefined ? Number(activeLoc.lng) : 72.854;
+  const locLat = activeLoc?.lat !== undefined ? Number(activeLoc.lat) : 12.960;
+  const locLng = activeLoc?.lng !== undefined ? Number(activeLoc.lng) : 77.715;
 
-  const currentR24 = Number(activeTelemetry?.rainfall24h ?? 85.0);
-  const currentR72 = Number(activeTelemetry?.rainfall72h ?? 190.0);
-  const currentElev = Number(activeTelemetry?.elevation ?? 15.0);
+  const currentR24 = Number(activeTelemetry?.rainfall24h ?? 0.0);
+  const currentR72 = Number(activeTelemetry?.rainfall72h ?? 0.0);
+  const currentElev = Number(activeTelemetry?.elevation ?? 897.0);
 
-  const curProb = alertScore?.probability ?? activePrediction?.probability ?? 78.4;
+  const curProb = alertScore?.probability ?? activePrediction?.probability ?? 2.5;
   const isThresholdCrossed = curProb >= 50.0;
   const deltaThreshold = Math.round((curProb - 50.0) * 10) / 10;
 
@@ -661,34 +648,61 @@ export default function AlertsReportsView({
               )}
             </div>
 
-            {/* Quick 1-Click Preset Location Chips */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#94a3b8', marginRight: '4px' }}>
-                Quick Presets:
-              </span>
-              {PRESET_LOCATIONS.map((preset, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleApplyLocation(preset)}
-                  style={{
-                    background: locName.toLowerCase() === preset.name.toLowerCase() ? '#0284c7' : '#0b1120',
-                    color: locName.toLowerCase() === preset.name.toLowerCase() ? '#ffffff' : '#94a3b8',
-                    border: '1px solid #1e293b',
-                    borderRadius: '14px',
-                    padding: '4px 10px',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <span>📍</span>
-                  <span>{preset.name}</span>
-                </button>
-              ))}
+            {/* Live Device Location Auto-Detect Button */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!navigator.geolocation) {
+                    alert('Geolocation is not supported by your browser.');
+                    return;
+                  }
+                  setIsFetchingLocation(true);
+                  setStatusNotification('⚡ Locking onto device hardware/Wi-Fi GPS coordinates...');
+                  navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                      const lat = parseFloat(pos.coords.latitude.toFixed(4));
+                      const lng = parseFloat(pos.coords.longitude.toFixed(4));
+                      let pName = `Device Location (${lat}, ${lng})`;
+                      try {
+                        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
+                          headers: { 'User-Agent': 'DisasterRadar/1.0' }
+                        });
+                        if (r.ok) {
+                          const d = await r.json();
+                          const a = d.address || {};
+                          const c = a.city || a.town || a.suburb || a.village || a.county || d.display_name.split(',')[0];
+                          const s = a.state || a.country || '';
+                          pName = `${c}, ${s}`.trim().replace(/^,|,$/g, '');
+                        }
+                      } catch (e) {}
+
+                      handleApplyLocation({ name: pName, country: '', lat, lng });
+                    },
+                    (err) => {
+                      setIsFetchingLocation(false);
+                      setStatusNotification(`⚠️ Location access denied: ${err.message}. Please allow Location permission in your browser.`);
+                      setTimeout(() => setStatusNotification(''), 5000);
+                    },
+                    { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+                  );
+                }}
+                style={{
+                  background: 'rgba(16, 185, 129, 0.16)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.45)',
+                  borderRadius: '14px',
+                  padding: '5px 14px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>📍 Lock to My Live Device Location</span>
+              </button>
             </div>
 
             {/* Direct Lat/Long Input Form */}
@@ -809,6 +823,64 @@ export default function AlertsReportsView({
         </button>
       </div>
 
+      {/* REAL-TIME LAYER SYNCHRONIZATION SHIELD: DO NOT SHOW UNTIL EACH LAYER IS REAL TIME */}
+      {loading ? (
+        <div style={{
+          background: 'radial-gradient(circle at center, #0f172a 0%, #020617 100%)',
+          borderRadius: '16px',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          padding: '50px 24px',
+          margin: '20px 0',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7)',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            border: '4px solid rgba(56, 189, 248, 0.15)',
+            borderTop: '4px solid #38bdf8',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '18px'
+          }} />
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc', margin: '0 0 8px 0', letterSpacing: '0.4px' }}>
+            SYNCHRONIZING REAL-TIME ALERTS & SENSITIVITY LAYERS
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: '0.84rem', maxWidth: '520px', lineHeight: 1.5, margin: '0 0 24px 0' }}>
+            Querying live 50% flood risk threshold evaluator, 7-day retrospective telemetry archives, and rainfall growth elasticity for <strong style={{ color: '#38bdf8' }}>{locName}</strong>...
+          </p>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            width: '100%',
+            maxWidth: '440px',
+            background: 'rgba(15, 23, 42, 0.8)',
+            padding: '16px 20px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: alertScore ? '#10b981' : '#64748b' }}>
+              <span style={{ fontWeight: 800 }}>{alertScore ? '✓' : '◌'}</span>
+              <span>50.0% Critical Municipal Threshold Scorer</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: rainfallImpact ? '#10b981' : '#64748b' }}>
+              <span style={{ fontWeight: 800 }}>{rainfallImpact ? '✓' : '◌'}</span>
+              <span>Multi-Tier Rainfall Sensitivity & Drainage Elasticity</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: weeklyReport ? '#10b981' : '#64748b' }}>
+              <span style={{ fontWeight: 800 }}>{weeklyReport ? '✓' : '◌'}</span>
+              <span>7-Day Retrospective Incident Ledger</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* TAB 1: 🚨 50% THRESHOLD SCORING */}
       {subTab === 'threshold' && (
         <div>
@@ -1236,6 +1308,8 @@ export default function AlertsReportsView({
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
