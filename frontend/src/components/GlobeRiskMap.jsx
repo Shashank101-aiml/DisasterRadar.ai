@@ -8,13 +8,16 @@ import {
   predictFloodRisk,
   fetchMiraBhayandarGIS,
   fetchDopplerRadarConfig,
-  submitGroundTruthReport
+  submitGroundTruthReport,
+  reverseGeocodeCoords
 } from '../services/api';
 
 export default function GlobeRiskMap({
   onSelectLocationForPredict,
   onBackToDashboard,
   activeLocation,
+  currentParams,
+  currentPrediction,
   onLocationChange,
   onOpenHistoryModal
 }) {
@@ -39,30 +42,58 @@ export default function GlobeRiskMap({
     lng: 77.7151
   });
 
-
-  // Telemetry & Prediction States (Initialized clean, loaded dynamically from Open-Meteo & XGBoost)
-  const [telemetry, setTelemetry] = useState({
-    rainfall24h: 0,
-    rainfall72h: 0,
-    elevation: 0,
-    temperature: 0,
-    humidity: 0,
-    windSpeed: 0,
-    pressure: 1013,
-    status: 'loading',
-    source: 'Open-Meteo Global Satellite & DEM'
+  // Telemetry & Prediction States (Initialized cleanly from currentParams if available, otherwise dynamic live ingestion)
+  const [telemetry, setTelemetry] = useState(() => {
+    if (currentParams && (currentParams.rainfall24h > 0 || currentParams.elevation > 0 || currentParams.temperature > 0)) {
+      return {
+        rainfall24h: currentParams.rainfall24h ?? 0,
+        rainfall72h: currentParams.rainfall72h ?? 0,
+        elevation: currentParams.elevation ?? 0,
+        temperature: currentParams.temperature ?? 0,
+        humidity: currentParams.humidity ?? 0,
+        windSpeed: currentParams.windSpeed ?? 0,
+        pressure: currentParams.pressure ?? 1013,
+        currentRainfall: currentParams.currentRainfall ?? 0,
+        isRaining: Boolean(currentParams.isRaining),
+        weatherCondition: (currentParams.currentRainfall || 0) > 0 ? 'Active Rain' : 'Currently Dry / Clear',
+        status: 'live',
+        source: 'Open-Meteo Global Satellite & DEM'
+      };
+    }
+    return {
+      rainfall24h: 0,
+      rainfall72h: 0,
+      elevation: 0,
+      temperature: 0,
+      humidity: 0,
+      windSpeed: 0,
+      pressure: 1013,
+      currentRainfall: 0,
+      isRaining: false,
+      weatherCondition: 'Clear / Dry',
+      status: 'loading',
+      source: 'Open-Meteo Global Satellite & DEM'
+    };
   });
 
-  const [prediction, setPrediction] = useState({
-    probability: 0,
-    riskLevel: 'EVALUATING',
-    riskClass: 'low',
-    recommendation: 'Querying live satellite telemetry & computing hydrological inundation risk...',
-    riskFactors: []
+  const [prediction, setPrediction] = useState(() => {
+    if (currentPrediction && currentPrediction.probability !== undefined) {
+      return currentPrediction;
+    }
+    return {
+      probability: 0,
+      riskLevel: 'EVALUATING',
+      riskClass: 'low',
+      recommendation: 'Querying live satellite telemetry & computing hydrological inundation risk...',
+      riskFactors: []
+    };
   });
 
   const [isLoadingTelemetry, setIsLoadingTelemetry] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
+
+  // Keep a stable ref to handleNavigateToLocation for Three.js and Leaflet click callbacks
+  const handleNavigateToLocationRef = useRef(null);
 
   // References for Three.js 3D Globe
   const globeContainerRef = useRef(null);
@@ -445,10 +476,17 @@ export default function GlobeRiskMap({
     // Calculate rotation to face initial target
     updateGlobeTargetRotation(targetLocation.lat, targetLocation.lng);
 
-    // Mouse Controls (Rotate / Orbit / Zoom)
+    // Mouse Controls (Rotate / Orbit / Zoom + Click Coordinate Pinning)
+    let startX = 0;
+    let startY = 0;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
     const onMouseDown = (e) => {
       threeStateRef.current.isDragging = true;
       threeStateRef.current.prevMouse = { x: e.clientX, y: e.clientY };
+      startX = e.clientX;
+      startY = e.clientY;
     };
 
     const onMouseMove = (e) => {
@@ -464,8 +502,45 @@ export default function GlobeRiskMap({
       );
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = async (e) => {
       threeStateRef.current.isDragging = false;
+      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      // If mouse moved less than 6px, it's an intentional click to select a point on Earth
+      if (dist < 6 && container && camera && threeStateRef.current.globeMesh) {
+        const rect = container.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(threeStateRef.current.globeMesh);
+        if (intersects && intersects.length > 0) {
+          const hit = intersects[0].point.clone();
+          threeStateRef.current.globeMesh.worldToLocal(hit);
+          hit.normalize();
+          const phi = Math.acos(Math.max(-1, Math.min(1, hit.y)));
+          const lat = parseFloat((90 - (phi * 180 / Math.PI)).toFixed(4));
+          const theta = Math.atan2(hit.z, -hit.x);
+          let lng = parseFloat(((theta * 180 / Math.PI) - 180).toFixed(4));
+          while (lng < -180) lng += 360;
+          while (lng > 180) lng -= 360;
+
+          let placeName = `Point (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`;
+          let countryName = '';
+          try {
+            const revRes = await reverseGeocodeCoords(lat, lng);
+            if (revRes && revRes.name) {
+              placeName = revRes.name;
+              countryName = revRes.country || '';
+            }
+          } catch (err) {}
+
+          handleNavigateToLocationRef.current?.({
+            name: placeName,
+            country: countryName,
+            lat: lat,
+            lng: lng
+          });
+        }
+      }
     };
 
     const onWheel = (e) => {
@@ -787,8 +862,12 @@ export default function GlobeRiskMap({
   // ==========================================================================
   // 2. TELEMETRY FETCH & ML MODEL PREDICTION FLOW
   // ==========================================================================
+  const lastLoadedKeyRef = useRef('');
+
   const handleNavigateToLocation = useCallback(async (locationItem) => {
     if (!locationItem || locationItem.lat === undefined || locationItem.lng === undefined) return;
+    const locKey = `${locationItem.name || ''}_${Number(locationItem.lat).toFixed(3)}_${Number(locationItem.lng).toFixed(3)}`;
+    lastLoadedKeyRef.current = locKey;
     setIsLoadingTelemetry(true);
     setTargetLocation(locationItem);
     setLatInput(Number(locationItem.lat).toFixed(4));
@@ -801,11 +880,6 @@ export default function GlobeRiskMap({
       console.warn('Globe rotation error:', e);
     }
 
-    // Notify parent about location change
-    try {
-      onLocationChange?.(locationItem);
-    } catch (e) {}
-
     // 2. Fetch Live Telemetry from Open-Meteo & Copernicus DEM APIs
     try {
       const liveTelemetry = await fetchGlobalLiveTelemetry(locationItem.lat, locationItem.lng);
@@ -816,6 +890,8 @@ export default function GlobeRiskMap({
         const predictionInput = {
           rainfall24h: liveTelemetry.rainfall24h,
           rainfall72h: liveTelemetry.rainfall72h,
+          currentRainfall: liveTelemetry.currentRainfall,
+          isRaining: liveTelemetry.isRaining,
           temperature: liveTelemetry.temperature,
           humidity: liveTelemetry.humidity,
           windSpeed: liveTelemetry.windSpeed,
@@ -840,6 +916,11 @@ export default function GlobeRiskMap({
     }
   }, [onLocationChange]);
 
+  // Keep ref up to date
+  useEffect(() => {
+    handleNavigateToLocationRef.current = handleNavigateToLocation;
+  });
+
   // Quick 1-Click Action: Force Zero Rainfall Baseline (Dry Weather Mode)
   const handleSetZeroRainfall = async () => {
     await handleGroundTruthVerify(false);
@@ -848,9 +929,9 @@ export default function GlobeRiskMap({
   // Option A: 1-Tap Ground-Truth Verification (Waze-style crowdsourced meteorological calibration)
   const handleGroundTruthVerify = async (isRaining) => {
     setGroundTruthState({ verified: true, condition: isRaining ? 'RAIN' : 'DRY' });
-    const activeRate = isRaining ? (telemetry.currentRainfall > 0 ? telemetry.currentRainfall : 4.5) : 0.0;
-    const r24 = isRaining ? (telemetry.rainfall24h > 0 ? telemetry.rainfall24h : 18.0) : 0.0;
-    const r72 = isRaining ? (telemetry.rainfall72h > 0 ? telemetry.rainfall72h : 42.0) : 0.0;
+    const activeRate = isRaining ? (telemetry.currentRainfall > 0 ? telemetry.currentRainfall : 8.5) : 0.0;
+    const r24 = isRaining ? Math.max(telemetry.rainfall24h || 0, 45.0) : 0.0;
+    const r72 = isRaining ? Math.max(telemetry.rainfall72h || 0, 95.0) : 0.0;
 
     const updatedTelem = {
       ...telemetry,
@@ -880,6 +961,8 @@ export default function GlobeRiskMap({
     const predictionInput = {
       rainfall24h: r24,
       rainfall72h: r72,
+      currentRainfall: activeRate,
+      isRaining: isRaining,
       temperature: telemetry.temperature,
       humidity: telemetry.humidity,
       windSpeed: telemetry.windSpeed,
@@ -904,12 +987,16 @@ export default function GlobeRiskMap({
   // Auto-fetch real-time telemetry on mount and whenever activeLocation changes
   useEffect(() => {
     const loc = activeLocation || targetLocation;
-    if (loc && loc.lat && loc.lng) {
-      if (loc.lat !== targetLocation.lat || loc.lng !== targetLocation.lng || loc.name !== targetLocation.name) {
-        handleNavigateToLocation(loc);
-      }
+    if (!loc || loc.lat === undefined || loc.lng === undefined) return;
+
+    const locKey = `${loc.name || ''}_${Number(loc.lat).toFixed(3)}_${Number(loc.lng).toFixed(3)}`;
+    const isUninitialized = telemetry.status === 'loading' || (telemetry.elevation === 0 && telemetry.temperature === 0 && telemetry.humidity === 0);
+
+    if (lastLoadedKeyRef.current !== locKey || isUninitialized) {
+      lastLoadedKeyRef.current = locKey;
+      handleNavigateToLocation(loc);
     }
-  }, [activeLocation?.lat, activeLocation?.lng, activeLocation?.name]);
+  }, [activeLocation?.lat, activeLocation?.lng, activeLocation?.name, handleNavigateToLocation]);
 
   const handleSearchSubmit = async () => {
     if (!searchQuery.trim()) return;
@@ -1052,6 +1139,26 @@ export default function GlobeRiskMap({
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{x}/{y}', {
       maxZoom: 18
     }).addTo(map);
+
+    // Click on 2D map to inspect coordinates & query live telemetry
+    map.on('click', async (e) => {
+      const { lat, lng } = e.latlng;
+      let placeName = `Point (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+      let countryName = '';
+      try {
+        const revRes = await reverseGeocodeCoords(lat, lng);
+        if (revRes && revRes.name) {
+          placeName = revRes.name;
+          countryName = revRes.country || '';
+        }
+      } catch (err) {}
+      handleNavigateToLocationRef.current?.({
+        name: placeName,
+        country: countryName,
+        lat: parseFloat(lat.toFixed(4)),
+        lng: parseFloat(lng.toFixed(4))
+      });
+    });
 
     leafletMapRef.current = map;
 

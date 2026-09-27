@@ -15,7 +15,8 @@ export default function PredictRiskView({
   onBackToDashboard,
   onLocationChange
 }) {
-  const [params, setParams] = useState(initialParams || {
+  // 1. Live Ground Telemetry for active physical location (preserved strictly from satellites & Copernicus DEM)
+  const [liveParams, setLiveParams] = useState(initialParams || {
     rainfall24h: 0.0,
     rainfall72h: 0.0,
     temperature: 21.2,
@@ -29,64 +30,95 @@ export default function PredictRiskView({
     drainageCapacity: 45,
     ndwi: 0.12
   });
+  const [livePrediction, setLivePrediction] = useState(initialPrediction || null);
+
+  // 2. Independent Stress-Test Scenario Simulation State (does NOT overwrite live location)
+  const [activeMode, setActiveMode] = useState('live'); // 'live' | 'scenario'
+  const [selectedScenario, setSelectedScenario] = useState('live'); // 'live' | 'cloudburst' | 'monsoon' | 'coastal' | 'dry' | 'custom'
+  const [scenarioParams, setScenarioParams] = useState(null);
+  const [scenarioPrediction, setScenarioPrediction] = useState(null);
 
   const [locationQuery, setLocationQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [prediction, setPrediction] = useState(initialPrediction || null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedScenario, setSelectedScenario] = useState('custom');
   const [modelComparison, setModelComparison] = useState(null);
   const [isComparing, setIsComparing] = useState(false);
   const [compareError, setCompareError] = useState(null);
   const [gpsStatus, setGpsStatus] = useState(null);
   const [groundTruthState, setGroundTruthState] = useState({ verified: false, condition: null });
 
-  // Option A: 1-Tap Ground-Truth Verification (Waze-style crowdsourced meteorological calibration)
+  // Active Parameters & Prediction based on current mode (Live vs Scenario)
+  const displayParams = activeMode === 'scenario' && scenarioParams ? scenarioParams : liveParams;
+  const displayPrediction = activeMode === 'scenario' && scenarioPrediction ? scenarioPrediction : livePrediction;
+  const params = displayParams;
+  const prediction = displayPrediction;
+
+  // 1-Tap Ground-Truth Verification (for active live location)
   const handleGroundTruthVerify = async (isRaining) => {
     setGroundTruthState({ verified: true, condition: isRaining ? 'RAIN' : 'DRY' });
-    const r24 = isRaining ? 25.0 : 0.0;
-    const r72 = isRaining ? 55.0 : 0.0;
+    const r24 = isRaining ? 45.0 : 0.0;
+    const r72 = isRaining ? 95.0 : 0.0;
     const updated = {
-      ...params,
+      ...liveParams,
       rainfall24h: r24,
-      rainfall72h: r72
+      rainfall72h: r72,
+      isRaining: isRaining,
+      currentRainfall: isRaining ? 8.5 : 0.0
     };
-    setParams(updated);
+    setLiveParams(updated);
+    setActiveMode('live');
+    setSelectedScenario('live');
+    setScenarioParams(null);
+    setScenarioPrediction(null);
 
     try {
       await submitGroundTruthReport({
-        location: params.location,
-        latitude: params.latitude,
-        longitude: params.longitude,
+        location: liveParams.location,
+        latitude: liveParams.latitude,
+        longitude: liveParams.longitude,
         isRaining: isRaining,
         observedCondition: isRaining ? 'ACTIVE_RAIN_REPORTED' : 'USER_VERIFIED_DRY',
-        rainfallOverride: isRaining ? 5.0 : 0.0
+        rainfallOverride: isRaining ? 8.5 : 0.0
       });
     } catch (e) {
       console.warn('Ground truth submission error:', e);
     }
 
-    await handleRunPrediction(updated);
+    await handleRunLivePrediction(updated);
   };
 
   // Sync with parent props if updated externally
   useEffect(() => {
     if (initialParams) {
-      setParams(initialParams);
+      setLiveParams(initialParams);
     }
   }, [initialParams]);
 
   useEffect(() => {
     if (initialPrediction) {
-      setPrediction(initialPrediction);
+      setLivePrediction(initialPrediction);
     }
   }, [initialPrediction]);
+
+  // Sync when currentLocation changes from parent
+  useEffect(() => {
+    if (currentLocation && currentLocation.lat && currentLocation.lng) {
+      if (currentLocation.lat !== liveParams.latitude || currentLocation.lng !== liveParams.longitude) {
+        handleSelectLocation({
+          name: currentLocation.name,
+          country: currentLocation.country || '',
+          lat: currentLocation.lat,
+          lng: currentLocation.lng
+        });
+      }
+    }
+  }, [currentLocation?.lat, currentLocation?.lng]);
 
   const handleDetectDeviceGPS = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setGpsStatus('GPS not supported by browser');
-      if (!prediction) handleRunPrediction(params);
+      if (!livePrediction) handleRunLivePrediction(liveParams);
       return;
     }
     setIsLoading(true);
@@ -113,23 +145,29 @@ export default function PredictRiskView({
       try {
         const telemetry = await fetchGlobalLiveTelemetry(lat, lng);
         const updated = {
-          ...params,
+          ...liveParams,
           location: placeName,
           latitude: lat,
           longitude: lng,
-          elevation: telemetry.elevation,
-          rainfall24h: telemetry.rainfall24h,
-          rainfall72h: telemetry.rainfall72h,
-          temperature: telemetry.temperature,
-          humidity: telemetry.humidity,
-          pressure: telemetry.pressure,
-          windSpeed: telemetry.windSpeed
+          elevation: !isNaN(Number(telemetry.elevation)) ? Number(telemetry.elevation) : 15.0,
+          rainfall24h: !isNaN(Number(telemetry.rainfall24h)) ? Number(telemetry.rainfall24h) : 0.0,
+          rainfall72h: !isNaN(Number(telemetry.rainfall72h)) ? Number(telemetry.rainfall72h) : 0.0,
+          currentRainfall: !isNaN(Number(telemetry.currentRainfall)) ? Number(telemetry.currentRainfall) : 0.0,
+          isRaining: Boolean(telemetry.isRaining),
+          temperature: !isNaN(Number(telemetry.temperature)) ? Number(telemetry.temperature) : 25.0,
+          humidity: !isNaN(Number(telemetry.humidity)) ? Number(telemetry.humidity) : 60.0,
+          pressure: !isNaN(Number(telemetry.pressure)) ? Number(telemetry.pressure) : 1013.0,
+          windSpeed: !isNaN(Number(telemetry.windSpeed)) ? Number(telemetry.windSpeed) : 10.0
         };
-        setParams(updated);
+        setLiveParams(updated);
+        setActiveMode('live');
+        setSelectedScenario('live');
+        setScenarioParams(null);
+        setScenarioPrediction(null);
         const currRain = telemetry.currentRainfall !== undefined ? telemetry.currentRainfall : 0;
         const rainLabel = currRain === 0 ? '☀️ 0.0 mm/h (Dry)' : `🌧️ ${currRain} mm/h`;
         setGpsStatus(`📍 ${placeName.split(',')[0]} (${rainLabel})`);
-        await handleRunPrediction(updated, { name: placeName, country, lat, lng });
+        await handleRunLivePrediction(updated, { name: placeName, country, lat, lng });
       } catch (err) {
         console.error('GPS telemetry error:', err);
       } finally {
@@ -146,7 +184,7 @@ export default function PredictRiskView({
           setIsLoading(false);
           setGpsStatus(`GPS unavailable (${fallbackErr.message})`);
           setTimeout(() => setGpsStatus(null), 5000);
-          if (!prediction) handleRunPrediction(params);
+          if (!livePrediction) handleRunLivePrediction(liveParams);
         },
         { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
       );
@@ -159,9 +197,11 @@ export default function PredictRiskView({
     );
   };
 
-  // Automatically fetch real device location on mount
+  // Only auto-detect GPS on mount if no initial location was passed
   useEffect(() => {
-    handleDetectDeviceGPS();
+    if (!currentLocation?.lat && !initialParams?.latitude) {
+      handleDetectDeviceGPS();
+    }
   }, []);
 
   // Debounced location search
@@ -179,58 +219,188 @@ export default function PredictRiskView({
     return () => clearTimeout(timer);
   }, [locationQuery]);
 
-  // Handle Location Selection
+  // Handle Location Selection: updates live ground telemetry
   const handleSelectLocation = async (loc) => {
     setIsLoading(true);
     setLocationQuery('');
     setSearchResults([]);
+    setActiveMode('live');
+    setSelectedScenario('live');
+    setScenarioParams(null);
+    setScenarioPrediction(null);
 
     const telemetry = await fetchGlobalLiveTelemetry(loc.lat, loc.lng);
     const updated = {
-      ...params,
-      location: `${loc.name}, ${loc.country || ''}`,
+      ...liveParams,
+      location: `${loc.name}${loc.country ? ', ' + loc.country : ''}`.trim(),
       latitude: loc.lat,
       longitude: loc.lng,
-      rainfall24h: telemetry.rainfall24h,
-      rainfall72h: telemetry.rainfall72h,
-      temperature: telemetry.temperature,
-      humidity: telemetry.humidity,
-      pressure: telemetry.pressure,
-      elevation: telemetry.elevation
+      rainfall24h: !isNaN(Number(telemetry.rainfall24h)) ? Number(telemetry.rainfall24h) : 0.0,
+      rainfall72h: !isNaN(Number(telemetry.rainfall72h)) ? Number(telemetry.rainfall72h) : 0.0,
+      currentRainfall: !isNaN(Number(telemetry.currentRainfall)) ? Number(telemetry.currentRainfall) : 0.0,
+      isRaining: Boolean(telemetry.isRaining),
+      temperature: !isNaN(Number(telemetry.temperature)) ? Number(telemetry.temperature) : 25.0,
+      humidity: !isNaN(Number(telemetry.humidity)) ? Number(telemetry.humidity) : 60.0,
+      pressure: !isNaN(Number(telemetry.pressure)) ? Number(telemetry.pressure) : 1013.0,
+      elevation: !isNaN(Number(telemetry.elevation)) ? Number(telemetry.elevation) : 15.0
     };
 
-    setParams(updated);
-    handleRunPrediction(updated, loc);
+    setLiveParams(updated);
+    await handleRunLivePrediction(updated, loc);
   };
 
-  // Run ML model prediction
-  const handleRunPrediction = async (currentParams = params, loc = null) => {
+  // Run ML model prediction for LIVE Location (and sync with parent dashboard)
+  const handleRunLivePrediction = async (currentLiveParams = liveParams, loc = null) => {
     setIsLoading(true);
     setModelComparison(null);
     setCompareError(null);
+    const safeParams = {
+      ...currentLiveParams,
+      rainfall24h: !isNaN(Number(currentLiveParams.rainfall24h)) ? Number(currentLiveParams.rainfall24h) : 0.0,
+      rainfall72h: !isNaN(Number(currentLiveParams.rainfall72h)) ? Number(currentLiveParams.rainfall72h) : 0.0,
+      elevation: !isNaN(Number(currentLiveParams.elevation)) ? Number(currentLiveParams.elevation) : 15.0,
+      humidity: !isNaN(Number(currentLiveParams.humidity)) ? Number(currentLiveParams.humidity) : 60.0,
+      temperature: !isNaN(Number(currentLiveParams.temperature)) ? Number(currentLiveParams.temperature) : 25.0
+    };
     try {
-      const res = await predictFloodRisk(currentParams);
-      setPrediction(res);
-      if (onLocationChange) {
-        onLocationChange(
-          loc || { name: currentParams.location.split(',')[0], lat: currentParams.latitude, lng: currentParams.longitude },
-          currentParams,
-          res
-        );
+      const res = await predictFloodRisk(safeParams);
+      if (res) {
+        setLivePrediction(res);
+        if (onLocationChange) {
+          onLocationChange(
+            loc || { name: safeParams.location.split(',')[0], lat: safeParams.latitude, lng: safeParams.longitude },
+            safeParams,
+            res
+          );
+        }
       }
     } catch (e) {
-      console.error('Prediction failed:', e);
+      console.error('Live location prediction failed:', e);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Run the same telemetry through XGBoost and Random Forest side by side
+  // Run ML model prediction for STRESS-TEST SCENARIOS (strictly independent simulation)
+  const handleRunScenarioPrediction = async (scenParams) => {
+    setIsLoading(true);
+    setModelComparison(null);
+    setCompareError(null);
+    const safeParams = {
+      ...scenParams,
+      rainfall24h: !isNaN(Number(scenParams.rainfall24h)) ? Number(scenParams.rainfall24h) : 0.0,
+      rainfall72h: !isNaN(Number(scenParams.rainfall72h)) ? Number(scenParams.rainfall72h) : 0.0,
+      elevation: !isNaN(Number(scenParams.elevation)) ? Number(scenParams.elevation) : 15.0,
+      humidity: !isNaN(Number(scenParams.humidity)) ? Number(scenParams.humidity) : 60.0,
+      temperature: !isNaN(Number(scenParams.temperature)) ? Number(scenParams.temperature) : 25.0
+    };
+    try {
+      const res = await predictFloodRisk(safeParams);
+      if (res) {
+        setScenarioPrediction(res);
+      }
+    } catch (e) {
+      console.error('Scenario prediction failed:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 1-Click Reset: Return from Simulation back to Real-World Ground Reality
+  const handleResetToLive = () => {
+    setActiveMode('live');
+    setSelectedScenario('live');
+    setScenarioParams(null);
+    setScenarioPrediction(null);
+    setModelComparison(null);
+  };
+
+  // Apply Stress-Test Scenario (Does NOT alter or overwrite real location telemetry)
+  const handleApplyScenario = async (scenarioKey) => {
+    if (scenarioKey === 'live') {
+      handleResetToLive();
+      return;
+    }
+
+    setSelectedScenario(scenarioKey);
+    setActiveMode('scenario');
+    let newScen = {
+      ...liveParams,
+      location: `[Simulated: ${scenarioKey.toUpperCase()}] ${liveParams.location}`
+    };
+
+    if (scenarioKey === 'cloudburst') {
+      newScen = {
+        ...newScen,
+        rainfall24h: 145,
+        rainfall72h: 210,
+        slope: 0.25,
+        drainageCapacity: 3.0,
+        humidity: 95,
+        windSpeed: 28,
+        ndwi: 0.25,
+        ndvi: 0.52
+      };
+    } else if (scenarioKey === 'monsoon') {
+      newScen = {
+        ...newScen,
+        rainfall24h: 85,
+        rainfall72h: 260,
+        slope: 0.35,
+        drainageCapacity: 4.0,
+        humidity: 92,
+        ndwi: 0.20,
+        ndvi: 0.50
+      };
+    } else if (scenarioKey === 'coastal') {
+      newScen = {
+        ...newScen,
+        elevation: 3,
+        rainfall24h: 45,
+        rainfall72h: 110,
+        slope: 0.20,
+        pressure: 996,
+        drainageCapacity: 3.5,
+        ndwi: 0.26,
+        ndvi: 0.48
+      };
+    } else if (scenarioKey === 'dry') {
+      newScen = {
+        ...newScen,
+        rainfall24h: 0,
+        rainfall72h: 0,
+        slope: 1.5,
+        drainageCapacity: 6.0,
+        humidity: 45,
+        ndwi: -0.1,
+        ndvi: 0.60
+      };
+    }
+
+    setScenarioParams(newScen);
+    await handleRunScenarioPrediction(newScen);
+  };
+
+  // Slider change: adjusts simulation parameters without modifying live location
+  const handleSliderChange = async (field, value) => {
+    const base = activeMode === 'scenario' && scenarioParams ? scenarioParams : liveParams;
+    const updated = {
+      ...base,
+      [field]: value,
+      location: `[Custom What-If] ${liveParams.location}`
+    };
+    setActiveMode('scenario');
+    setSelectedScenario('custom');
+    setScenarioParams(updated);
+    await handleRunScenarioPrediction(updated);
+  };
+
+  // Run XGBoost vs Random Forest side by side on currently displayed parameters
   const handleCompareModels = async () => {
     setIsComparing(true);
     setCompareError(null);
     try {
-      const res = await compareModelPredictions(params);
+      const res = await compareModelPredictions(displayParams);
       setModelComparison(res);
     } catch (e) {
       console.error('Model comparison failed:', e);
@@ -240,53 +410,7 @@ export default function PredictRiskView({
     }
   };
 
-  // Preset Scenario Loaders
-  const handleApplyScenario = (scenarioKey) => {
-    setSelectedScenario(scenarioKey);
-    let newParams = { ...params };
-
-    if (scenarioKey === 'cloudburst') {
-      newParams = {
-        ...newParams,
-        rainfall24h: 145,
-        rainfall72h: 180,
-        humidity: 92,
-        windSpeed: 28,
-        ndwi: 0.42
-      };
-    } else if (scenarioKey === 'monsoon') {
-      newParams = {
-        ...newParams,
-        rainfall24h: 95,
-        rainfall72h: 260,
-        humidity: 88,
-        elevation: Math.min(newParams.elevation, 25),
-        ndwi: 0.35
-      };
-    } else if (scenarioKey === 'coastal') {
-      newParams = {
-        ...newParams,
-        elevation: 3,
-        rainfall24h: 80,
-        rainfall72h: 140,
-        pressure: 996,
-        ndwi: 0.48
-      };
-    } else if (scenarioKey === 'dry') {
-      newParams = {
-        ...newParams,
-        rainfall24h: 5,
-        rainfall72h: 12,
-        humidity: 45,
-        ndwi: -0.2
-      };
-    }
-
-    setParams(newParams);
-    handleRunPrediction(newParams);
-  };
-
-  const prob = prediction ? Number(prediction.probability) : 78.4;
+  const prob = displayPrediction ? Number(displayPrediction.probability) : (livePrediction ? Number(livePrediction.probability) : 2.4);
   const isBreached = prob >= 50.0;
   const estDepthMeters = prob > 50 ? ((prob - 50) * 0.038).toFixed(2) : '0.05';
 
@@ -508,10 +632,45 @@ export default function PredictRiskView({
         <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '14px', padding: '24px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
           {/* Stress-Test Scenario Buttons */}
           <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
-              Stress-Test Scenarios (1-Click Presets):
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                Stress-Test Scenarios (1-Click Presets):
+              </div>
+              {activeMode === 'scenario' && (
+                <button
+                  onClick={handleResetToLive}
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    color: '#34d399',
+                    borderRadius: '6px',
+                    padding: '3px 8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ↺ Reset to Live Location
+                </button>
+              )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: '8px' }}>
+              <button
+                onClick={() => handleApplyScenario('live')}
+                style={{
+                  background: activeMode === 'live' ? '#111a2d' : '#0f172a',
+                  border: activeMode === 'live' ? '1.5px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '8px',
+                  padding: '8px 10px',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeMode === 'live' ? '#10b981' : '#f8fafc' }}>
+                  🛰️ Live Reality
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Real-Time Satellites</div>
+              </button>
               {[
                 { key: 'cloudburst', label: '⛈️ Cloudburst Shock', desc: '145mm 24h Rain' },
                 { key: 'monsoon', label: '🌧️ Monsoon Saturated', desc: '260mm 72h Rain' },
@@ -522,8 +681,8 @@ export default function PredictRiskView({
                   key={s.key}
                   onClick={() => handleApplyScenario(s.key)}
                   style={{
-                    background: selectedScenario === s.key ? '#111a2d' : '#0f172a',
-                    border: selectedScenario === s.key ? '1.5px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
+                    background: activeMode === 'scenario' && selectedScenario === s.key ? '#111a2d' : '#0f172a',
+                    border: activeMode === 'scenario' && selectedScenario === s.key ? '1.5px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
                     borderRadius: '8px',
                     padding: '8px 10px',
                     textAlign: 'left',
@@ -536,6 +695,46 @@ export default function PredictRiskView({
               ))}
             </div>
           </div>
+
+          {/* Scenario Simulation Alert Banner */}
+          {activeMode === 'scenario' && (
+            <div style={{
+              background: 'rgba(2, 132, 199, 0.12)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              borderRadius: '10px',
+              padding: '10px 14px',
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#38bdf8' }}>
+                  🧪 INDEPENDENT STRESS-TEST SIMULATION
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#cbd5e1', marginTop: '2px' }}>
+                  Testing hypothetical conditions. Actual live forecast for <strong>{liveParams.location}</strong> ({livePrediction ? livePrediction.probability : 2.4}%) is preserved independently.
+                </div>
+              </div>
+              <button
+                onClick={handleResetToLive}
+                style={{
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                ↺ View Live Reality
+              </button>
+            </div>
+          )}
 
           {/* Option A: 1-Tap Ground-Truth Calibration Widget */}
           <div style={{
@@ -627,11 +826,7 @@ export default function PredictRiskView({
                 min="0"
                 max="250"
                 value={params.rainfall24h}
-                onChange={(e) => {
-                  const updated = { ...params, rainfall24h: parseFloat(e.target.value) };
-                  setParams(updated);
-                  handleRunPrediction(updated);
-                }}
+                onChange={(e) => handleSliderChange('rainfall24h', parseFloat(e.target.value))}
                 style={{ width: '100%', accentColor: '#0284c7' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
@@ -652,11 +847,7 @@ export default function PredictRiskView({
                 min="0"
                 max="400"
                 value={params.rainfall72h}
-                onChange={(e) => {
-                  const updated = { ...params, rainfall72h: parseFloat(e.target.value) };
-                  setParams(updated);
-                  handleRunPrediction(updated);
-                }}
+                onChange={(e) => handleSliderChange('rainfall72h', parseFloat(e.target.value))}
                 style={{ width: '100%', accentColor: '#0284c7' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
@@ -677,11 +868,7 @@ export default function PredictRiskView({
                 min="1"
                 max="300"
                 value={params.elevation}
-                onChange={(e) => {
-                  const updated = { ...params, elevation: parseFloat(e.target.value) };
-                  setParams(updated);
-                  handleRunPrediction(updated);
-                }}
+                onChange={(e) => handleSliderChange('elevation', parseFloat(e.target.value))}
                 style={{ width: '100%', accentColor: '#10b981' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
@@ -703,11 +890,7 @@ export default function PredictRiskView({
                   min="20"
                   max="100"
                   value={params.humidity}
-                  onChange={(e) => {
-                    const updated = { ...params, humidity: parseFloat(e.target.value) };
-                    setParams(updated);
-                    handleRunPrediction(updated);
-                  }}
+                  onChange={(e) => handleSliderChange('humidity', parseFloat(e.target.value))}
                   style={{ width: '100%', accentColor: '#0284c7' }}
                 />
               </div>
@@ -722,11 +905,7 @@ export default function PredictRiskView({
                   min="5"
                   max="45"
                   value={params.temperature}
-                  onChange={(e) => {
-                    const updated = { ...params, temperature: parseFloat(e.target.value) };
-                    setParams(updated);
-                    handleRunPrediction(updated);
-                  }}
+                  onChange={(e) => handleSliderChange('temperature', parseFloat(e.target.value))}
                   style={{ width: '100%', accentColor: '#0284c7' }}
                 />
               </div>
@@ -739,16 +918,21 @@ export default function PredictRiskView({
           {/* Main Risk Score Card */}
           <div style={{
             background: '#0b1120',
-            border: isBreached ? '2px solid #ef4444' : '1px solid rgba(56, 189, 248, 0.18)',
+            border: isBreached ? '2px solid #ef4444' : (activeMode === 'scenario' ? '1.5px solid rgba(56, 189, 248, 0.5)' : '1px solid rgba(56, 189, 248, 0.18)'),
             borderRadius: '14px',
             padding: '24px',
             boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
             position: 'relative'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                AI Flood Risk Assessment
-              </span>
+              <div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: activeMode === 'scenario' ? '#38bdf8' : '#94a3b8', textTransform: 'uppercase' }}>
+                  {activeMode === 'scenario' ? '🧪 Stress-Test Scenario Assessment' : '📡 Live Location Risk Assessment'}
+                </span>
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                  {activeMode === 'scenario' ? 'Hypothetical what-if simulation (does not affect live location)' : `Real-time satellite & DEM observation for ${liveParams.location}`}
+                </div>
+              </div>
               <span style={{
                 background: isBreached ? 'rgba(239, 68, 68, 0.16)' : 'rgba(16, 185, 129, 0.16)',
                 color: isBreached ? '#ef4444' : '#10b981',
@@ -758,7 +942,7 @@ export default function PredictRiskView({
                 fontSize: '0.78rem',
                 fontWeight: 800
               }}>
-                {isBreached ? 'CRITICAL RISK (>50%)' : 'NORMAL / SAFE (<50%)'}
+                {activeMode === 'scenario' ? `SIMULATION: ${isBreached ? 'CRITICAL RISK' : 'NORMAL'}` : (isBreached ? 'CRITICAL RISK (>50%)' : 'NORMAL / SAFE (<50%)')}
               </span>
             </div>
 
@@ -768,7 +952,7 @@ export default function PredictRiskView({
                 {prob}%
               </span>
               <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 600 }}>
-                Inundation Probability
+                {activeMode === 'scenario' ? 'Simulated Inundation Probability' : 'Inundation Probability'}
               </span>
             </div>
 
@@ -811,6 +995,48 @@ export default function PredictRiskView({
               </div>
             </div>
           </div>
+
+          {/* Active Live Location Reference Card (Shown when testing a simulation scenario) */}
+          {activeMode === 'scenario' && (
+            <div style={{
+              background: '#0b1120',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '12px',
+              padding: '14px 18px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>
+                    📍 Actual Ground Reality: {liveParams.location}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '2px' }}>
+                    <span style={{ fontSize: '1.4rem', fontWeight: 900, color: (livePrediction?.probability || 0) >= 50 ? '#ef4444' : '#10b981' }}>
+                      {livePrediction ? livePrediction.probability : 2.4}%
+                    </span>
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                      {livePrediction?.riskLevel || 'LOW RISK'} • {liveParams.rainfall24h} mm live 24h rain
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleResetToLive}
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    color: '#34d399',
+                    borderRadius: '8px',
+                    padding: '6px 14px',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  View Live Reality →
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Top Risk Contributors for this prediction */}
           <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '14px', padding: '20px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>

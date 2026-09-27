@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import TopMetrics from './components/TopMetrics';
@@ -57,9 +57,9 @@ export default function App() {
     location: 'Bengaluru, Karnataka'
   });
 
-  // Current Prediction State
+  // Current Prediction State (computed dynamically from ML model)
   const [prediction, setPrediction] = useState({
-    probability: 2.5,
+    probability: 0.0,
     riskLevel: 'LOW',
     riskClass: 'low',
     recommendation: 'SAFE: Environmental conditions well within absorption thresholds. Continue routine hydrological monitoring.',
@@ -84,7 +84,7 @@ export default function App() {
   const [telemetrySyncStatus, setTelemetrySyncStatus] = useState('');
 
   // Unified Location & Live Telemetry Synchronizer for ALL tabs
-  const handleLocationTelemetrySync = async (newLoc, newParams = null, newPred = null) => {
+  const handleLocationTelemetrySync = useCallback(async (newLoc, newParams = null, newPred = null) => {
     if (!newLoc) return;
     setActiveLocation(newLoc);
 
@@ -108,6 +108,8 @@ export default function App() {
         const updated = {
           rainfall24h: live.rainfall24h,
           rainfall72h: live.rainfall72h,
+          currentRainfall: live.currentRainfall,
+          isRaining: live.isRaining,
           temperature: live.temperature,
           humidity: live.humidity,
           windSpeed: live.windSpeed || 12,
@@ -129,7 +131,7 @@ export default function App() {
     } finally {
       setIsFetchingRealTelemetry(false);
     }
-  };
+  }, []);
 
   // Initial Data Fetch
   useEffect(() => {
@@ -257,13 +259,15 @@ export default function App() {
     });
 
     const updatedParams = {
-      rainfall24h: locData.r24 ?? locData.rainfall24h ?? 85,
-      rainfall72h: locData.r72 ?? locData.rainfall72h ?? 190,
+      rainfall24h: locData.r24 ?? locData.rainfall24h ?? 0.0,
+      rainfall72h: locData.r72 ?? locData.rainfall72h ?? 0.0,
+      currentRainfall: locData.currentRainfall ?? locData.current_rainfall ?? 0.0,
+      isRaining: Boolean(locData.isRaining ?? locData.is_raining),
       temperature: locData.temp ?? locData.temperature ?? 25,
-      humidity: locData.hum ?? locData.humidity ?? 82,
-      windSpeed: locData.wind ?? locData.windSpeed ?? 15,
-      pressure: locData.pressure ?? 1008,
-      elevation: locData.elev ?? locData.elevation ?? 20,
+      humidity: locData.hum ?? locData.humidity ?? 60,
+      windSpeed: locData.wind ?? locData.windSpeed ?? 10,
+      pressure: locData.pressure ?? 1013,
+      elevation: locData.elev ?? locData.elevation ?? 15,
       latitude: locData.lat,
       longitude: locData.lng,
       location: locData.country ? `${locData.name}, ${locData.country}` : locData.name
@@ -331,6 +335,8 @@ export default function App() {
             onBackToDashboard={() => setActiveTab('dashboard')}
             onSelectLocationForPredict={handleGlobePredict}
             activeLocation={activeLocation}
+            currentParams={params}
+            currentPrediction={prediction}
             onLocationChange={handleLocationTelemetrySync}
             onOpenHistoryModal={() => setActiveTab('historical')}
           />

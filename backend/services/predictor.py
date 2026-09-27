@@ -34,7 +34,8 @@ def predict_flood_risk(params: PredictionInput) -> PredictionResponse:
         features = build_feature_row(params)
         sample_df = pd.DataFrame([features])
         prob_raw = float(model.predict_proba(sample_df)[0, 1])
-        prob_percent = round(min(99.4, max(2.5, prob_raw * 100.0)), 1)
+        # Direct probability computed strictly by the trained ML model
+        prob_percent = round(min(100.0, max(0.0, prob_raw * 100.0)), 1)
     else:
         # Calibrated fallback if model file is not yet compiled
         r24 = float(params.rainfall24h)
@@ -48,7 +49,7 @@ def predict_flood_risk(params: PredictionInput) -> PredictionResponse:
         if press < 1008.0:
             score += ((1008.0 - press) / 20.0) * 0.08
         prob_raw = 1.0 / (1.0 + math.exp(-4.0 * (score - 0.55)))
-        prob_percent = round(min(99.4, max(2.5, prob_raw * 100.0)), 1)
+        prob_percent = round(min(100.0, max(0.0, prob_raw * 100.0)), 1)
 
     risk_level, risk_class, recommendation = classify_risk(prob_percent)
     risk_factors = compute_risk_factors(params)

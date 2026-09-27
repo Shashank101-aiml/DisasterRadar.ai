@@ -10,6 +10,11 @@ Calculates:
 
 import requests
 import math
+import time
+import datetime
+import io
+from concurrent.futures import ThreadPoolExecutor
+from PIL import Image
 from typing import Dict, Any, Optional
 from config import settings
 
@@ -174,6 +179,7 @@ def fetch_live_open_meteo_rainfall(latitude: float, longitude: float, location_n
     if settings.OPEN_METEO_API_KEY:
         params["apikey"] = settings.OPEN_METEO_API_KEY
 
+    elevation_val = 15.0
     # Open-Meteo includes elevation directly in the primary forecast payload (Copernicus DEM GLO-90)
     try:
         resp = requests.get(url, params=params, timeout=4)
@@ -189,15 +195,18 @@ def fetch_live_open_meteo_rainfall(latitude: float, longitude: float, location_n
             raw_rain = float(curr.get("precipitation", 0.0))
             weather_code = int(curr.get("weather_code", 0))
 
-            # Meteorological deadband: < 0.25 mm/h is trace virga / airborne mist that does not wet ground
-            if raw_rain < 0.25:
+            # Rainy WMO weather codes: drizzle, rain, showers, thunderstorms
+            rain_codes = {51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99}
+            is_rain_code = weather_code in rain_codes
+
+            if raw_rain >= 0.25 or is_rain_code:
+                is_raining = True
+                curr_rain = round(max(raw_rain, 2.0 if is_rain_code and raw_rain < 0.25 else raw_rain), 2)
+                weather_desc = f"Rain ({curr_rain} mm/h)"
+            else:
                 curr_rain = 0.0
                 is_raining = False
                 weather_desc = "Clear / Dry"
-            else:
-                curr_rain = round(raw_rain, 2)
-                is_raining = True
-                weather_desc = f"Rain ({curr_rain} mm/h)"
 
             # Match current hour to accurately slice past elapsed hours
             curr_time_str = str(curr.get("time", ""))[:13]
@@ -217,6 +226,12 @@ def fetch_live_open_meteo_rainfall(latitude: float, longitude: float, location_n
 
             r24 = round(float(sum(past_24_slice)), 2)
             r72 = round(float(sum(past_72_slice)), 2)
+
+            # If location is currently raining, active rain creates immediate surface accumulation
+            if is_raining and curr_rain > 0:
+                r24 = round(max(r24, curr_rain * 3.5), 2)
+                r72 = round(max(r72, r24 * 1.5), 2)
+
             ratio = round(r72 / (r24 + 1.0), 3)
 
             # Instantaneous values from current block
@@ -341,8 +356,19 @@ def get_live_weather_by_location_or_coords(
     if latitude is not None and longitude is not None:
         return fetch_live_open_meteo_rainfall(latitude, longitude, location_name=location)
 
-    # Default fallback to Mira Bhayandar / Mumbai
-    return fetch_live_open_meteo_rainfall(19.2952, 72.8544, location_name="Mira Bhayandar, India")
+    # Return error if neither coordinates nor recognizable location provided
+    return {
+        "status": "error",
+        "message": "Missing latitude/longitude or valid location query",
+        "current_rainfall": 0.0,
+        "is_raining": False,
+        "weather_condition": "Unknown",
+        "rainfall_24h": 0.0,
+        "rainfall_72h": 0.0,
+        "elevation": 15.0,
+        "temperature": 25.0,
+        "humidity": 60.0
+    }
 
 def get_elevation_and_terrain_proxy(latitude: float, longitude: float, elevation: Optional[float] = None) -> Dict[str, float]:
     """

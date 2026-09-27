@@ -10,27 +10,59 @@ from models.schemas import PredictionInput, RiskFactor
 
 
 def build_feature_row(params: PredictionInput) -> dict:
-    r24 = float(params.rainfall24h)
-    r72 = float(params.rainfall72h)
-    hum = float(params.humidity)
-    elev = float(params.elevation)
+    r24 = max(0.0, float(params.rainfall24h if params.rainfall24h is not None else 0.0))
+    r72 = max(0.0, float(params.rainfall72h if params.rainfall72h is not None else 0.0))
 
-    slope = max(0.2, min(15.0, (1000.0 - min(elev, 950.0)) / 100.0))
-    slope_rad = math.radians(max(0.1, slope))
-    twi = round(math.log(max(10.0, (100.0 - min(elev, 95.0)) * 5.0) / max(0.01, math.tan(slope_rad))), 2)
-    twi = max(-4.0, min(24.0, twi))
+    # Use actual telemetry values without artificial inflation
 
-    ndwi = round(max(-0.8, min(0.9, (hum - 45.0) / 60.0)), 3)
-    ndvi = round(max(0.05, min(0.85, 0.48 - (r24 / 500.0))), 3)
+    hum = max(0.0, min(100.0, float(params.humidity if params.humidity is not None else 60.0)))
+    elev = max(0.0, float(params.elevation if params.elevation is not None else 15.0))
+
+    # Slope: respect parameter or calculate based on natural elevation
+    # Floodplains & coastal lowlands have low slope (0.2° - 0.8°); hills have steeper slope
+    if getattr(params, 'slope', None) is not None and params.slope is not None:
+        slope = round(max(0.01, min(89.0, float(params.slope))), 2)
+    else:
+        slope = round(max(0.2, min(25.0, 0.25 + (elev / 250.0))), 2)
+
+    slope_rad = math.radians(max(0.05, slope))
+    
+    # Topographic Wetness Index (TWI)
+    if getattr(params, 'twi', None) is not None and params.twi is not None:
+        twi = round(float(params.twi), 2)
+    else:
+        try:
+            twi = round(math.log(max(10.0, (100.0 - min(elev, 95.0)) * 5.0) / max(0.01, math.tan(slope_rad))), 2)
+            twi = max(0.1, min(15.0, twi))
+        except Exception:
+            twi = 2.5
+
+    # Remote sensing spectral indices (NDWI, NDVI)
+    if getattr(params, 'ndwi', None) is not None and params.ndwi is not None:
+        ndwi = round(float(params.ndwi), 3)
+    else:
+        ndwi = round(max(-0.6, min(0.6, (hum - 50.0) / 75.0)), 3)
+
+    if getattr(params, 'ndvi', None) is not None and params.ndvi is not None:
+        ndvi = round(float(params.ndvi), 3)
+    else:
+        ndvi = round(max(0.1, min(0.85, 0.55 - (r24 / 400.0))), 3)
 
     # Socioeconomic & Infrastructure Proxies
-    drainage_capacity = 5.5
-    urbanization_index = 7.5
-    infrastructure_decay = 6.0
-    disaster_unpreparedness = 6.0
+    drain_cap_param = getattr(params, 'drainageCapacity', None) or getattr(params, 'drainage_capacity', None)
+    drainage_capacity = round(float(drain_cap_param), 1) if drain_cap_param is not None else 4.5
+
+    urban_param = getattr(params, 'urbanizationIndex', None) or getattr(params, 'urbanization_index', None)
+    urbanization_index = round(float(urban_param), 1) if urban_param is not None else 7.0
+
+    decay_param = getattr(params, 'infrastructureDecay', None) or getattr(params, 'infrastructure_decay', None)
+    infrastructure_decay = round(float(decay_param), 1) if decay_param is not None else 5.5
+
+    unprep_param = getattr(params, 'disasterUnpreparedness', None) or getattr(params, 'disaster_unpreparedness', None)
+    disaster_unpreparedness = round(float(unprep_param), 1) if unprep_param is not None else 5.5
 
     precip_ratio = round(r72 / (r24 + 1.0), 3)
-    ponding_hazard = round((100.0 - min(elev, 100.0)) / (slope + 0.1), 3)
+    ponding_hazard = round(float((100.0 - min(elev, 100.0)) / (slope + 0.1)), 3)
     water_contrast = round(ndwi - ndvi, 3)
     drainage_stress = round(r24 / (drainage_capacity * 10.0), 3)
 

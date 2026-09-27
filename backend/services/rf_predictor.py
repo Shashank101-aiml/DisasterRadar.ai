@@ -55,7 +55,7 @@ def predict_flood_risk_rf(params: PredictionInput):
         sample = np.array([features[name] for name in model["feature_names"]])
         tree_probs = [_predict_tree(tree, sample) for tree in model["trees"]]
         prob_raw = float(np.mean(tree_probs, axis=0)[1])
-        prob_percent = round(min(99.4, max(2.5, prob_raw * 100.0)), 1)
+        prob_percent = round(min(100.0, max(0.0, prob_raw * 100.0)), 1)
     else:
         # Neutral fallback if the model file is not present
         prob_percent = 50.0

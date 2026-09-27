@@ -7,50 +7,29 @@
 const API_BASE = 'http://localhost:8000/api';
 
 export async function predictFloodRisk(parameters) {
-  try {
-    const response = await fetch(`${API_BASE}/predict`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(parameters)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+  // Retry loop: ensure request reaches the trained ML model backend
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(`${API_BASE}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parameters)
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 400));
+      }
     }
-    return await response.json();
-  } catch (err) {
-    console.warn('Backend API request failed, utilizing client-side XGBoost fallback:', err.message);
-    
-    // Fallback simulation
-    const r24 = parseFloat(parameters.rainfall24h) || 85;
-    const r72 = parseFloat(parameters.rainfall72h) || 190;
-    const hum = parseFloat(parameters.humidity) || 82;
-    const elev = parseFloat(parameters.elevation) || 900;
-    
-    let prob = 78.4;
-    if (r72 < 100 && r24 < 50) prob = 32.5;
-    else if (r72 < 150) prob = 55.0;
-
-    let riskLevel = prob >= 70 ? 'HIGH' : (prob >= 40 ? 'MODERATE' : 'LOW');
-
-    return {
-      probability: prob,
-      riskLevel: riskLevel,
-      riskClass: riskLevel.toLowerCase(),
-      recommendation: riskLevel === 'HIGH' 
-        ? 'Monitor rainfall and drainage conditions closely. Issue early warning for low-lying areas and prepare emergency response resources.'
-        : (riskLevel === 'MODERATE' ? 'Localized water accumulation possible. Municipal teams should stand by.' : 'Environmental conditions normal.'),
-      location: parameters.location || 'Bengaluru, Karnataka',
-      latitude: parameters.latitude || 12.97,
-      longitude: parameters.longitude || 77.59,
-      riskFactors: [
-        { name: 'Rainfall (72h)', value: 31, color: '#ef4444' },
-        { name: 'Rainfall (24h)', value: 22, color: '#f97316' },
-        { name: 'Humidity', value: 12, color: '#eab308' },
-        { name: 'Elevation', value: 8, color: '#a3e635' },
-        { name: 'Temperature', value: 8, color: '#84cc16' }
-      ]
-    };
   }
+
+  console.warn('ML Model backend unavailable after retries:', lastError?.message);
+  throw lastError || new Error('ML model service unavailable');
 }
 
 export async function compareModelPredictions(parameters) {
@@ -334,10 +313,10 @@ export async function reverseGeocodeCoords(lat, lng) {
  * Fetch real-time meteorological telemetry & elevation for any coordinate globally
  */
 export async function fetchGlobalLiveTelemetry(lat, lng) {
-  // 1. Try Backend Live Geospatial API first with 3.5s timeout (100% Free Open-Meteo & Copernicus DEM ingestion)
+  // 1. Try Backend Live Geospatial API first with 8s timeout (100% Free Open-Meteo & Copernicus DEM ingestion)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(`${API_BASE}/geospatial/weather?latitude=${lat}&longitude=${lng}`, {
       signal: controller.signal
     });
@@ -349,16 +328,18 @@ export async function fetchGlobalLiveTelemetry(lat, lng) {
         return {
           status: 'live',
           source: data.source || 'Open-Meteo Global Satellite & DEM',
+          latitude: lat,
+          longitude: lng,
           currentRainfall: Math.round(currRain * 10) / 10,
           isRaining: !!data.is_raining,
           weatherCondition: data.weather_condition || (currRain > 0 ? `Rain (${currRain} mm/h)` : 'Clear / Dry'),
-          rainfall24h: Math.round(data.rainfall_24h * 10) / 10,
-          rainfall72h: Math.round(data.rainfall_72h * 10) / 10,
-          temperature: Math.round(data.temperature * 10) / 10,
-          humidity: Math.round(data.humidity),
-          pressure: Math.round(data.pressure),
-          windSpeed: Math.round(data.wind_speed * 10) / 10,
-          elevation: Math.round(data.elevation)
+          rainfall24h: Math.round((data.rainfall_24h ?? data.rainfall24h ?? 0.0) * 10) / 10,
+          rainfall72h: Math.round((data.rainfall_72h ?? data.rainfall72h ?? 0.0) * 10) / 10,
+          temperature: Math.round((data.temperature ?? 25.0) * 10) / 10,
+          humidity: Math.round(data.humidity ?? 60.0),
+          pressure: Math.round(data.pressure ?? 1013.0),
+          windSpeed: Math.round((data.wind_speed ?? data.windSpeed ?? 10.0) * 10) / 10,
+          elevation: Math.round(data.elevation ?? 15.0)
         };
       }
     }
@@ -367,12 +348,12 @@ export async function fetchGlobalLiveTelemetry(lat, lng) {
   }
 
   try {
-    // 2. Query direct Open-Meteo Weather API as fallback (3.5s timeout)
+    // 2. Query direct Open-Meteo Weather API as fallback (8s timeout)
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=precipitation,rain,showers,weather_code,temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m&hourly=precipitation,rain,temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m&past_days=3&forecast_days=1&timezone=auto`;
     const elevUrl = `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lng}`;
 
     const c1 = new AbortController();
-    const t1 = setTimeout(() => c1.abort(), 3500);
+    const t1 = setTimeout(() => c1.abort(), 8000);
     const [wRes, eRes] = await Promise.all([
       fetch(weatherUrl, { signal: c1.signal }).catch(() => null),
       fetch(elevUrl, { signal: c1.signal }).catch(() => null)
@@ -428,6 +409,8 @@ export async function fetchGlobalLiveTelemetry(lat, lng) {
     return {
       status: 'live',
       source: 'Open-Meteo Global Satellite & DEM',
+      latitude: lat,
+      longitude: lng,
       currentRainfall: Math.round(currRain * 10) / 10,
       isRaining: currRain > 0,
       weatherCondition: currRain > 0 ? `Rain (${currRain} mm/h)` : 'Clear / Dry',
@@ -440,16 +423,21 @@ export async function fetchGlobalLiveTelemetry(lat, lng) {
       elevation: Math.round(elev)
     };
   } catch (err) {
-    console.warn('Telemetry fetch error, using calibrated baseline:', err);
+    console.warn('Telemetry fetch error, preserving dynamic coordinate state:', err);
     return {
-      status: 'fallback',
-      source: 'Calibrated Baseline',
-      rainfall24h: 85.0,
-      rainfall72h: 190.0,
+      status: 'offline',
+      source: 'Dynamic Coordinate Baseline',
+      latitude: lat,
+      longitude: lng,
+      currentRainfall: 0.0,
+      isRaining: false,
+      weatherCondition: 'Clear / Dry',
+      rainfall24h: 0.0,
+      rainfall72h: 0.0,
       temperature: 25.0,
-      humidity: 82.0,
-      pressure: 1005.0,
-      windSpeed: 12.0,
+      humidity: 60.0,
+      pressure: 1013.0,
+      windSpeed: 10.0,
       elevation: 15.0
     };
   }

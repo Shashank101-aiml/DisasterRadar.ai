@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from typing import List
 from datetime import datetime
 import os
+from config import settings
 
 from models.schemas import (
     PredictionInput,
