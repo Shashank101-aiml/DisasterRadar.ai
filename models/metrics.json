@@ -3,23 +3,23 @@
   "model_type": "xgboost.XGBClassifier",
   "serialization_format": "native_json",
   "model_file": "flood_model.json",
-  "accuracy": 0.8084,
-  "precision": 0.7108,
-  "recall": 0.7124,
-  "f1_score": 0.7116,
-  "roc_auc": 0.8903,
-  "pr_auc": 0.7566,
-  "brier_score": 0.1257,
-  "best_iteration": 42,
-  "total_boosting_trees": 43,
+  "accuracy": 0.8103,
+  "precision": 0.7109,
+  "recall": 0.7221,
+  "f1_score": 0.7164,
+  "roc_auc": 0.891,
+  "pr_auc": 0.7576,
+  "brier_score": 0.1246,
+  "best_iteration": 61,
+  "total_boosting_trees": 62,
   "confusion_matrix": [
     [
-      7103,
-      1194
+      7087,
+      1210
     ],
     [
-      1185,
-      2935
+      1145,
+      2975
     ]
   ],
   "feature_names": [
@@ -40,21 +40,21 @@
     "drainage_stress"
   ],
   "feature_shap_importance": {
-    "rainfall_24h": 1.3215,
-    "drainage_stress": 1.1977,
-    "rainfall_72h": 0.1355,
-    "elevation": 0.075,
-    "precip_ratio": 0.0618,
-    "ponding_hazard": 0.0489,
-    "urbanization_index": 0.0428,
-    "ndvi": 0.0286,
-    "ndwi": 0.027,
-    "water_contrast": 0.0123,
-    "drainage_capacity": 0.0106,
-    "slope": 0.0058,
-    "twi": 0.0056,
-    "infrastructure_decay": 0.0038,
-    "disaster_unpreparedness": 0.0024
+    "rainfall_24h": 1.9836,
+    "drainage_stress": 1.9255,
+    "rainfall_72h": 0.1828,
+    "precip_ratio": 0.1115,
+    "elevation": 0.0784,
+    "ponding_hazard": 0.0538,
+    "urbanization_index": 0.0527,
+    "ndwi": 0.0394,
+    "ndvi": 0.0355,
+    "water_contrast": 0.0252,
+    "twi": 0.0204,
+    "drainage_capacity": 0.0174,
+    "slope": 0.0097,
+    "disaster_unpreparedness": 0.0073,
+    "infrastructure_decay": 0.0062
   },
   "generalization_diagnosis": "WELL GENERALIZED (High fidelity across validation and test datasets, no severe overfitting)."
 }

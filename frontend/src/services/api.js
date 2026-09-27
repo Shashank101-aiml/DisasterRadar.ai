@@ -6,12 +6,16 @@
 
 const API_BASE = 'http://localhost:8000/api';
 
-export async function predictFloodRisk(parameters) {
+export async function predictFloodRisk(parameters, modelType = 'xgboost') {
   // Retry loop: ensure request reaches the trained ML model backend
   let lastError = null;
+  const url = modelType && modelType !== 'xgboost' 
+    ? `${API_BASE}/predict?model=${encodeURIComponent(modelType)}` 
+    : `${API_BASE}/predict`;
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await fetch(`${API_BASE}/predict`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parameters)
@@ -30,6 +34,10 @@ export async function predictFloodRisk(parameters) {
 
   console.warn('ML Model backend unavailable after retries:', lastError?.message);
   throw lastError || new Error('ML model service unavailable');
+}
+
+export async function predictFloodRiskEnsemble(parameters) {
+  return predictFloodRisk(parameters, 'ensemble');
 }
 
 export async function compareModelPredictions(parameters) {
