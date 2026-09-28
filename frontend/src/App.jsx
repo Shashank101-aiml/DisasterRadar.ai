@@ -141,7 +141,7 @@ export default function App() {
         fetchModelPerformance(),
         fetchRecentPredictions()
       ]);
-      setStations(stationList);
+      setStations(Array.isArray(stationList) ? stationList : []);
       setModelMetrics(perfData);
       setRecentPredictions(recentData);
 
@@ -197,16 +197,26 @@ export default function App() {
       const result = await predictFloodRisk(params);
       setPrediction(result);
 
-      // Prepend to recent list
+      // Prepend to recent list with clean location name
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      let locLabel = params.location || 'Active Station';
+      if (locLabel.startsWith('Device Location (')) {
+        locLabel = `Device (${params.latitude ? Number(params.latitude).toFixed(2) : '12.96'}°N, ${params.longitude ? Number(params.longitude).toFixed(2) : '77.71'}°E)`;
+      } else {
+        locLabel = locLabel.split(',')[0];
+      }
+
       const newRecent = {
         time: timeStr,
-        location: (params.location || 'Point').split(',')[0],
+        location: locLabel,
         probability: result.probability,
         riskLevel: result.riskLevel
       };
-      setRecentPredictions(prev => [newRecent, ...prev.slice(0, 5)]);
+      setRecentPredictions(prev => {
+        const filtered = prev.filter(p => !(p.location === newRecent.location && Math.abs(p.probability - newRecent.probability) < 0.05 && p.time === newRecent.time));
+        return [newRecent, ...filtered.slice(0, 5)];
+      });
     } catch (err) {
       console.error('Prediction failed:', err);
     } finally {
@@ -355,6 +365,7 @@ export default function App() {
             prediction={prediction}
             onBackToDashboard={() => setActiveTab('dashboard')}
             onLocationChange={handleLocationTelemetrySync}
+            onOpenPerformance={() => setActiveTab('performance')}
           />
         ) : activeTab === 'performance' ? (
           /* FULL-PAGE INTERACTIVE MODEL PERFORMANCE & EVALUATION STUDIO */

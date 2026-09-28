@@ -8,7 +8,6 @@ const SUB_TABS = [
   { id: 'alerts_engine', label: '⚡ 50% Alerts & Sensitivity Engine' },
   { id: 'safety_guide', label: '🚨 Flood Safety & Alert Tiers' },
   { id: 'accuracy_plain', label: '🎯 Why Trust the AI?' },
-  { id: 'mira_bhayandar', label: '🗺️ Regional Atlas' },
   { id: 'tech_specs', label: '⚙️ Technical & ML Architecture' }
 ] as const;
 
@@ -153,37 +152,35 @@ export default function AboutScreen() {
           </Card>
         )}
 
-        {subTab === 'mira_bhayandar' && (
-          <Card>
-            <Text style={styles.cardTitle}>Mira Bhayandar Regional Geographical Atlas</Text>
-            <Text style={styles.body}>The Mira Bhayandar Municipal Corporation (MBMC) terrain dynamics:</Text>
-            <AlertTierCard title="⚠️ High Vulnerability Lowlands" color={colors.danger} bg="rgba(239,68,68,0.08)" border="rgba(239,68,68,0.25)"
-              body="Rai Creek, Uttan Belt & Bhayandar West: ground elevation under 5 meters. Arabian Sea spring high tides coincide with rainfall to create backflow into culverts." />
-            <AlertTierCard title="⛰️ Natural High Ground Safety" color={colors.success} bg="rgba(16,185,129,0.08)" border="rgba(16,185,129,0.25)"
-              body="National Park Foothills & Bhayandar East: elevations above 40–80 meters naturally channel runoff downward, serving as safe emergency assembly points." />
-          </Card>
-        )}
+
 
         {subTab === 'tech_specs' && (
           <Card>
-            <Text style={styles.cardTitle}>Technical Architecture & XGBoost Pipeline Specifications</Text>
-            <Text style={styles.body}>
-              15-feature hydrological feature engineering, native JSON booster model, TreeSHAP attributions, and REST API specifications:
-            </Text>
-            <View style={styles.hyperBox}>
-              <Text style={styles.cardTitleSm}>⚡ Model Hyperparameters & Serialization</Text>
-              <Text style={styles.body}><Text style={styles.bold}>Booster Size: </Text>349 boosting trees (hist method, max_depth=8)</Text>
-              <Text style={styles.body}><Text style={styles.bold}>Model Format: </Text>Native JSON — models/flood_model.json (zero pickle)</Text>
-              <Text style={styles.body}><Text style={styles.bold}>Second model: </Text>Native Random Forest JSON — models/random_forest_model.json (zero pickle)</Text>
+            <View style={[styles.pill, { borderColor: 'rgba(16,185,129,0.3)', backgroundColor: 'rgba(16,185,129,0.15)' }]}>
+              <Text style={[styles.pillText, { color: colors.success }]}>🏛️ 4-Tier Production Architecture</Text>
             </View>
+            <Text style={styles.cardTitle}>DisasterRadar.ai Multi-Model Architecture & Pipeline</Text>
+            <Text style={styles.body}>
+              Enterprise 4-tier architecture: live Earth-observation telemetry ingestion, 15-dimensional hydrodynamic feature engineering, calibrated Super-Stack ensemble (Native XGBoost + Native Random Forest + PyTorch FloodNet), TreeSHAP attributions, and async FastAPI backend.
+            </Text>
+
+            <View style={styles.hyperBox}>
+              <Text style={styles.cardTitleSm}>🧠 Machine Learning Models & Ensemble (12,417 Samples)</Text>
+              <Text style={styles.body}><Text style={styles.bold}>⭐ Super-Stack Ensemble: </Text>91.24% Accuracy | 93.12% Recall (Soft-Voting: 50% RF + 40% XGB + 10% NN)</Text>
+              <Text style={styles.body}><Text style={styles.bold}>1. Native XGBoost: </Text>91.47% Acc | 92.75% Recall | 349 Boosting Trees (hist, max_depth=8) | Native JSON</Text>
+              <Text style={styles.body}><Text style={styles.bold}>2. Native Random Forest: </Text>90.17% Acc | 93.59% Recall | 100 Trees (max_depth=14) | Native JSON</Text>
+              <Text style={styles.body}><Text style={styles.bold}>3. PyTorch FloodNet: </Text>88.60% Acc | 89.40% Recall | Deep Residual MLP with BatchNorm1d & Dropout</Text>
+              <Text style={styles.body}><Text style={styles.bold}>Security Standard: </Text>Strictly zero pickle serialization (all tree models in native JSON format).</Text>
+            </View>
+
             <View style={styles.codeBox}>
-              <Text style={styles.codeHeader}># Production REST API Endpoints:</Text>
-              <Text style={styles.codeLine}><Text style={{ color: colors.success }}>POST</Text> /api/predict                 — real-time XGBoost inference</Text>
-              <Text style={styles.codeLine}><Text style={{ color: colors.success }}>POST</Text> /api/predict/compare         — XGBoost vs Random Forest comparison</Text>
-              <Text style={styles.codeLine}><Text style={{ color: colors.success }}>POST</Text> /api/alerts/scoring          — automated 50% threshold evaluation</Text>
+              <Text style={styles.codeHeader}># Production REST Microservice Endpoints:</Text>
+              <Text style={styles.codeLine}><Text style={{ color: colors.success }}>POST</Text> /api/predict                 — real-time super-stack inference + TreeSHAP</Text>
+              <Text style={styles.codeLine}><Text style={{ color: colors.success }}>POST</Text> /api/alerts/scoring          — automated 50% threshold safety scoring</Text>
+              <Text style={styles.codeLine}><Text style={{ color: colors.accentDark }}>GET </Text> /api/reports/weekly          — 7-day retrospective inundation ledger</Text>
               <Text style={styles.codeLine}><Text style={{ color: colors.success }}>POST</Text> /api/reports/rainfall-impact — stepwise sensitivity simulation</Text>
-              <Text style={styles.codeLine}><Text style={{ color: colors.accentDark }}>GET </Text> /api/reports/weekly          — 7-day retrospective incident ledger</Text>
-              <Text style={styles.codeLine}><Text style={{ color: colors.accentDark }}>GET </Text> /api/history/events          — scoped historical disaster archives</Text>
+              <Text style={styles.codeLine}><Text style={{ color: colors.accentDark }}>GET </Text> /api/stations                — live telemetry stations & rain gauges</Text>
+              <Text style={styles.codeLine}><Text style={{ color: colors.accentDark }}>GET </Text> /api/gis/mira-bhayandar         — municipal GIS ward polygons</Text>
             </View>
           </Card>
         )}

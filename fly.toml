@@ -2,10 +2,10 @@
 # Deploy from the repo root (D:\DisasterRadar) so the Dockerfile's build context
 # includes both backend/ and the sibling models/ directory.
 #
-# Before first deploy:
 #   flyctl auth login
 #   flyctl launch --no-deploy --copy-config --name <your-unique-app-name>
 #   flyctl volumes create disasterradar_data --region <your-region> --size 1
+#   flyctl secrets set GEMINI_API_KEY="your_gemini_key"
 #   flyctl deploy
 
 app = "disasterradar-api"          # must be globally unique on Fly.io — change if taken
@@ -18,6 +18,7 @@ primary_region = "iad"             # change to a region near you
   DB_DIR = "/data"
   DEBUG = "False"
   APP_PORT = "8000"
+  GEMINI_MODEL = "gemini-1.5-flash"
 
 [mounts]
   source = "disasterradar_data"

@@ -1135,9 +1135,10 @@ export default function GlobeRiskMap({
       attributionControl: false
     });
 
-    // World Topo Map Tiles (matching the cartographic hillshade aesthetic)
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{x}/{y}', {
-      maxZoom: 18
+    // High-Resolution Cartographic Voyager Tiles with global zoom level support
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
     }).addTo(map);
 
     // Click on 2D map to inspect coordinates & query live telemetry
@@ -1298,11 +1299,29 @@ export default function GlobeRiskMap({
             <span>Dashboard</span>
           </button>
           <div>
-            <h2 className="globe-main-title">
-              {viewMode === '3d-globe' ? '3D World Globe Flood Radar' : 'High-Resolution Topographic GIS Atlas'}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 className="globe-main-title">
+                {viewMode === '3d-globe' ? '3D World Globe Flood Radar' : '2D Topographic GIS Atlas'}
+              </h2>
+              {viewMode === '2d-gis' && (
+                <span style={{
+                  fontSize: '0.66rem',
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  color: '#fbbf24',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontWeight: 800,
+                  letterSpacing: '0.4px'
+                }}>
+                  🚧 IN DEVELOPMENT
+                </span>
+              )}
+            </div>
             <div className="globe-sub-title">
-              Planetary Geospatial Telemetry Ingestion & Real-Time AI Risk Inference
+              {viewMode === '3d-globe'
+                ? 'Planetary Geospatial Telemetry Ingestion & Real-Time AI Risk Inference'
+                : 'Cartographic Ward-Level Choropleth & Overpass Hydro-Corridors (Development Preview)'}
             </div>
           </div>
         </div>
@@ -1323,6 +1342,7 @@ export default function GlobeRiskMap({
           <button
             className={`view-toggle-btn ${viewMode === '2d-gis' ? 'active' : ''}`}
             onClick={() => setViewMode('2d-gis')}
+            style={{ position: 'relative' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
@@ -1330,6 +1350,17 @@ export default function GlobeRiskMap({
               <line x1="16" y1="6" x2="16" y2="22" />
             </svg>
             <span>2D GIS Atlas</span>
+            <span style={{
+              fontSize: '0.58rem',
+              background: '#f59e0b',
+              color: '#0f172a',
+              fontWeight: 800,
+              padding: '1px 5px',
+              borderRadius: '4px',
+              marginLeft: '4px'
+            }}>
+              DEV
+            </span>
           </button>
         </div>
 
@@ -1496,7 +1527,31 @@ export default function GlobeRiskMap({
 
         {/* Mode B: 2D Topographic Cartographic GIS Atlas */}
         {viewMode === '2d-gis' && (
-          <div className="gis-canvas-container">
+          <div className="gis-canvas-container" style={{ position: 'relative' }}>
+            {/* Development Phase Floating Indicator */}
+            <div style={{
+              position: 'absolute',
+              top: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1000,
+              background: 'rgba(15, 23, 42, 0.94)',
+              border: '1px solid rgba(245, 158, 11, 0.5)',
+              borderRadius: '20px',
+              padding: '6px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+              backdropFilter: 'blur(8px)',
+              fontSize: '0.74rem',
+              color: '#f8fafc'
+            }}>
+              <span style={{ fontSize: '0.86rem' }}>🚧</span>
+              <span style={{ fontWeight: 800, color: '#f59e0b', letterSpacing: '0.3px' }}>DEVELOPMENT PHASE:</span>
+              <span style={{ color: '#cbd5e1' }}>2D Cartographic Vector Atlas & Overpass Hydro-Corridors are currently in active calibration.</span>
+            </div>
+
             <div ref={leafletContainerRef} className="gis-leaflet-container" />
 
             {/* GIS Layer Toggles */}

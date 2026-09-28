@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { queryFloodAssistant } from '../services/api';
 
 export default function AiExplainerView({
   onBackToDashboard,
@@ -11,7 +12,18 @@ export default function AiExplainerView({
 }) {
   const [activeSubTab, setActiveSubTab] = useState('evacuation');
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [activeSpeakingMsgId, setActiveSpeakingMsgId] = useState(null);
   const [speechSynth, setSpeechSynth] = useState(null);
+  const [isListening, setIsListening] = useState(false);
+  const [autoReadAloud, setAutoReadAloud] = useState(true);
+  const [geminiApiKey, setGeminiApiKey] = useState(() => {
+    try {
+      return localStorage.getItem('floodrisk_gemini_key') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [showKeyModal, setShowKeyModal] = useState(false);
 
   // Flood Scenario Selector State
   const [selectedScenario, setSelectedScenario] = useState('current');
@@ -36,9 +48,37 @@ export default function AiExplainerView({
     livestock: false
   });
 
-  // Interactive AI Flood Evacuation Query State
-  const [userQuery, setUserQuery] = useState('');
-  const [aiAnswer, setAiAnswer] = useState(null);
+  // Conversational Chatbot State
+  const [inputQuery, setInputQuery] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [messages, setMessages] = useState([
+    {
+      id: 'msg-init',
+      sender: 'assistant',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      model: 'FloodRisk Gemini Copilot',
+      text: `Hello! I am your **FloodRisk Emergency AI Copilot** powered by Google Gemini and real-time hydrological models.
+
+📍 **Active Station Telemetry**:
+• Location: **${params?.location || currentLocation?.name || 'Monitored Flood Basin'}**
+• 24h Rainfall: **${params?.rainfall24h ?? 85} mm** | 72h Cumulative: **${params?.rainfall72h ?? 190} mm**
+• Flood Probability: **${prediction?.probability || 78.4}%** | Risk Level: **${prediction?.riskLevel || 'HIGH'}**
+• Terrain Elevation: **${params?.elevation ?? 900} m**
+
+Ask me anything regarding life-safety evacuation steps, vehicle escape protocols, electrical grid isolation (MCB), livestock protection, or sewer backsurge management. Click any quick prompt below or tap the 🎤 microphone to speak!`,
+      source: 'gemini'
+    }
+  ]);
+
+  const chatEndRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (activeSubTab === 'assistant' && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isGenerating, activeSubTab]);
 
   // Speech synthesis setup
   useEffect(() => {
@@ -52,20 +92,211 @@ export default function AiExplainerView({
     };
   }, []);
 
-  const handleSpeak = (text) => {
-    if (!speechSynth) return;
-    if (isSpeaking) {
-      speechSynth.cancel();
-      setIsSpeaking(false);
+  // Web Speech Recognition setup
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recog = new SpeechRecognition();
+        recog.continuous = false;
+        recog.interimResults = false;
+        recog.lang = 'en-US';
+
+        recog.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          setInputQuery(transcript);
+          setIsListening(false);
+          // auto send spoken query
+          setTimeout(() => {
+            handleSendUserMessage(transcript);
+          }, 300);
+        };
+
+        recog.onerror = (err) => {
+          console.warn('Speech recognition error:', err);
+          setIsListening(false);
+        };
+
+        recog.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recog;
+      }
+    }
+  }, [geminiApiKey, params, prediction]);
+
+  const toggleMicListening = () => {
+    if (!recognitionRef.current) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        if (speechSynth) speechSynth.cancel();
+        setIsSpeaking(false);
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (err) {
+        console.warn('Could not start recognition:', err);
+        setIsListening(false);
+      }
+    }
+  };
+
+  const handleSpeakText = (text, msgId = null) => {
+    if (!speechSynth) return;
+    if (isSpeaking && activeSpeakingMsgId === msgId) {
+      speechSynth.cancel();
+      setIsSpeaking(false);
+      setActiveSpeakingMsgId(null);
+      return;
+    }
+    speechSynth.cancel();
+    // Clean markdown symbols for smooth audio reading
+    const cleanText = text
+      .replace(/[*#`_~[\]()]/g, ' ')
+      .replace(/📍/g, 'Location: ')
+      .replace(/•/g, ', ')
+      .replace(/\n+/g, '. ');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setActiveSpeakingMsgId(null);
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setActiveSpeakingMsgId(null);
+    };
     setIsSpeaking(true);
+    setActiveSpeakingMsgId(msgId);
     speechSynth.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if (speechSynth) {
+      speechSynth.cancel();
+      setIsSpeaking(false);
+      setActiveSpeakingMsgId(null);
+    }
+  };
+
+  const handleSendUserMessage = async (textOverride = null) => {
+    const text = (textOverride !== null ? textOverride : inputQuery).trim();
+    if (!text || isGenerating) return;
+
+    setInputQuery('');
+    const userMsgId = `user-${Date.now()}`;
+    const assistantMsgId = `asst-${Date.now()}`;
+
+    const newHistory = [
+      ...messages,
+      {
+        id: userMsgId,
+        sender: 'user',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text
+      }
+    ];
+
+    setMessages(newHistory);
+    setIsGenerating(true);
+
+    // Placeholder message for streaming LLM typing effect
+    const streamingMsg = {
+      id: assistantMsgId,
+      sender: 'assistant',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      model: geminiApiKey ? 'Google Gemini 1.5 Flash' : 'HydroNet 2.0 (Embedded)',
+      text: '',
+      isStreaming: true
+    };
+
+    setMessages(prev => [...prev, streamingMsg]);
+
+    const telemetryContext = {
+      location: params?.location || currentLocation?.name || 'Monitored Flood Basin',
+      rainfall24h: params?.rainfall24h ?? 85,
+      rainfall72h: params?.rainfall72h ?? 190,
+      riskLevel: prediction?.riskLevel || 'HIGH',
+      probability: prediction?.probability || 78.4,
+      elevation: params?.elevation ?? 900
+    };
+
+    try {
+      const res = await queryFloodAssistant({
+        prompt: text,
+        telemetry: telemetryContext,
+        history: newHistory,
+        apiKey: geminiApiKey || undefined
+      });
+
+      const fullResponse = res?.response || `### 🌊 Emergency Flood Guidance\n\n1. Move to higher ground immediately.\n2. Turn off the main electrical breaker (MCB).\n3. Avoid driving into floodwaters.\n4. Call emergency services at 112 if trapped.`;
+      const modelName = res?.model || (geminiApiKey ? 'Google Gemini 1.5 Flash' : 'HydroNet 2.0 (Embedded)');
+
+      // Simulate real-time token streaming / typewriter effect
+      let charIndex = 0;
+      const chunkSize = Math.max(3, Math.floor(fullResponse.length / 40));
+      
+      const streamInterval = setInterval(() => {
+        charIndex += chunkSize;
+        if (charIndex >= fullResponse.length) {
+          clearInterval(streamInterval);
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === assistantMsgId
+                ? { ...m, text: fullResponse, isStreaming: false, model: modelName }
+                : m
+            )
+          );
+          setIsGenerating(false);
+
+          // Auto read aloud if enabled
+          if (autoReadAloud) {
+            setTimeout(() => {
+              handleSpeakText(fullResponse, assistantMsgId);
+            }, 200);
+          }
+        } else {
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === assistantMsgId
+                ? { ...m, text: fullResponse.slice(0, charIndex), isStreaming: true, model: modelName }
+                : m
+            )
+          );
+        }
+      }, 25);
+
+    } catch (err) {
+      console.error('Chat generation error:', err);
+      const fallbackText = `⚠️ **Emergency Flood Advisory**: Water levels are elevated. Prioritize vertical evacuation to upper concrete floors, shut off main electrical breakers, and dial 112 for disaster emergency response.`;
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantMsgId
+            ? { ...m, text: fallbackText, isStreaming: false }
+            : m
+        )
+      );
+      setIsGenerating(false);
+      if (autoReadAloud) {
+        handleSpeakText(fallbackText, assistantMsgId);
+      }
+    }
+  };
+
+  const handleSaveApiKey = (key) => {
+    setGeminiApiKey(key);
+    try {
+      localStorage.setItem('floodrisk_gemini_key', key);
+    } catch (e) {}
+    setShowKeyModal(false);
   };
 
   const toggleCheck = (key) => {
@@ -76,7 +307,7 @@ export default function AiExplainerView({
   const checklistChecked = Object.values(checkedItems).filter(Boolean).length;
   const checklistPercent = Math.round((checklistChecked / checklistTotal) * 100);
 
-  // 100% Flood-specific scenarios
+  // 100% Flood-specific scenarios with dedicated evacuation blueprints
   const floodScenarios = {
     current: {
       name: `Live Flood Telemetry: ${params?.location || currentLocation?.name || 'Monitored Flood Basin'}`,
@@ -89,7 +320,82 @@ export default function AiExplainerView({
       leadTime: '4 to 8 Hours Lead Time',
       actionTitle: 'Elevate Assets, Secure Siphons & Prepare Phased Evacuation',
       waterDepthEst: '0.45m - 0.85m potential street ponding',
-      summary: `Based on 24h rainfall of ${params?.rainfall24h ?? 85}mm, 72h accumulation of ${params?.rainfall72h ?? 190}mm, and terrain elevation of ${params?.elevation ?? 900}m, our AI hydro-engine estimates a ${prediction?.probability || 78.4}% flood inundation probability. Immediate protective actions required.`
+      summary: `Based on 24h rainfall of ${params?.rainfall24h ?? 85}mm, 72h accumulation of ${params?.rainfall72h ?? 190}mm, and terrain elevation of ${params?.elevation ?? 900}m, our AI hydro-engine estimates a ${prediction?.probability || 78.4}% flood inundation probability. Immediate protective actions required.`,
+      blueprintTitle: `Live Basin Evacuation Blueprint: ${params?.location || currentLocation?.name || 'Monitored Flood Basin'}`,
+      blueprint: [
+        {
+          category: 'Assets & Critical Appliances',
+          icon: '🔌',
+          badgeColor: '#0284c7',
+          title: '1. How to Evacuate Electronics & Home Power',
+          points: [
+            { label: 'Main Breaker Cutoff (MCB)', text: 'Shut down the main electrical breaker before rising street runoff touches 15 cm socket height to prevent deadly short circuits.' },
+            { label: 'Elevate Heavy Inverters & Appliances', text: 'Move refrigerators, washing machines, and solar inverter battery banks onto 1.2m elevated masonry plinths or upper floors.' },
+            { label: 'LPG Cylinder Anchoring', text: 'Secure gas cylinders upright with heavy nylon ratchet straps to high window bars to prevent floating cylinders from shearing brass valves.' },
+            { label: 'Triple-Bag Vital Records', text: 'Seal property deeds, passports, Aadhaar cards, and insurance files in waterproof floating dry-pouches on your upper chest pack.' }
+          ]
+        },
+        {
+          category: 'Vehicle & Transit Safety',
+          icon: '🚗',
+          badgeColor: '#f59e0b',
+          title: '2. How to Evacuate Vehicles & Prevent Drowning',
+          points: [
+            { label: 'Relocate to Flyovers & High Podiums', text: 'Move 4-wheelers and two-wheelers 4 to 8 hours ahead to multi-level ramps, elevated parking plazas, or highway flyovers.' },
+            { label: '"Turn Around, Don\'t Drown"', text: 'Just 12 inches (30 cm) of moving floodwater exerts enough buoyancy to float sedans and compact SUVs into deep culverts.' },
+            { label: 'Strict Underpass Avoidance', text: 'Railway and metro underpasses collect 2 to 3 meters of lethal water within 15 minutes; never attempt to drive through dips.' },
+            { label: 'Emergency Car Stall Egress', text: 'If your car stalls in rising water, unbuckle instantly, lower the window glass, climb to the car roof, and call for rescue.' }
+          ]
+        },
+        {
+          category: 'Vulnerable Populations',
+          icon: '👨‍👩‍👧‍👦',
+          badgeColor: '#ef4444',
+          title: '3. Evacuating Elderly, Bedridden & Infants',
+          points: [
+            { label: 'Daylight Pre-Evacuation', text: 'Transfer senior citizens, expectant mothers, and infants during daylight hours before access roadways submerge.' },
+            { label: '14-Day Airtight Medical Kit', text: 'Pack insulin, blood pressure pills, cardiac medication, and doctor prescriptions in airtight floatable dry-boxes.' },
+            { label: 'Portable Medical Power Units', text: 'Ensure battery-powered oxygen concentrators and nebulizers are fully charged and prioritized in the evacuation vehicle.' },
+            { label: 'NDRF / Civil Defense Dispatch (112)', text: 'Register bedridden citizens with municipal emergency helplines for prioritized inflatable boat or high-clearance rescue.' }
+          ]
+        },
+        {
+          category: 'Livestock & Domestic Animals',
+          icon: '🐄',
+          badgeColor: '#10b981',
+          title: '4. How to Evacuate Cattle, Farm Animals & Pets',
+          points: [
+            { label: 'UNCHAIN CATTLE IMMEDIATELY', text: 'Never leave cows or buffaloes tied in sheds. Tethered animals will drown in 3 feet of water. Unbound livestock swim naturally to high ground.' },
+            { label: 'Move to Elevated Earthen Mounds', text: 'Lead herds to community earthen flood platforms (Kanti) constructed above the 100-year regional flood contour.' },
+            { label: 'Elevate Dry Fodder & Feed', text: 'Stack hay bales and cattle concentrate on elevated bamboo scaffolding wrapped in tarpaulins to prevent toxic rumen rot.' },
+            { label: 'Domestic Pets Go-Kit', text: 'Transport dogs and cats in rigid carriers with waterproof ID tags, leashes, harnesses, and 3 days of dry pet kibble.' }
+          ]
+        },
+        {
+          category: 'Drainage & Siphon Sealing',
+          icon: '🛡️',
+          badgeColor: '#8b5cf6',
+          title: '5. Preventing Sewer Blackwater Ingress',
+          points: [
+            { label: 'Plug Floor Drains', text: 'Insert mechanical expanding rubber plugs or water-filled heavy bags into ground-floor shower and floor drains.' },
+            { label: 'Sandbag the Toilet Bowl', text: 'Line the toilet bowl with heavy polyethylene, close the lid, and place a 25 kg sandbag on top to block pressurized sewer surges.' },
+            { label: 'Pyramid Sandbag Perimeter', text: 'Stack sandbags against entryway doors in a 1:3 pyramid ratio (base 3 sandbags wide, height 1 bag) with plastic lining.' },
+            { label: 'Exterior Non-Return Check Valves', text: 'Verify that municipal sewer connection inspection chambers have functioning non-return backwater check flaps.' }
+          ]
+        },
+        {
+          category: 'Post-Flood Protocol',
+          icon: '🔄',
+          badgeColor: '#06b6d4',
+          title: '6. Safe Re-Entry & Decontamination',
+          points: [
+            { label: 'Wait for Civil Defense "All-Clear"', text: 'Do not re-enter flood-damaged buildings until structural engineers certify load-bearing columns and foundations.' },
+            { label: 'Zero Flames / Spark Verification', text: 'Inspect for ruptured gas lines and ventilate rooms thoroughly before flipping any electrical switches or using lights.' },
+            { label: 'Boil Water Advisory (3 Minutes)', text: 'Tap water will be contaminated with sewage and pathogens. Boil water vigorously for 3 full minutes before drinking.' },
+            { label: 'Silt Sanitization with Bleach', text: 'Wear heavy rubber gumboots and disinfect all mud-soaked walls and floors with a 1:10 household bleach solution.' }
+          ]
+        }
+      ]
     },
     flash_flood: {
       name: '⚡ Rapid Flash Flood & Cloudburst Inundation',
@@ -102,7 +408,82 @@ export default function AiExplainerView({
       leadTime: '30 to 60 Minutes (Urgent Alert)',
       actionTitle: 'Immediate Vertical Evacuation to Higher Concrete Floors',
       waterDepthEst: '1.2m - 2.1m rapid surge (> 2.5 m/s velocity)',
-      summary: 'Extreme rainfall intensity exceeding municipal storm drains. Water rises within minutes. DO NOT attempt to drive or walk through street torrents. Move vertically above the 2nd floor immediately.'
+      summary: 'Extreme rainfall intensity exceeding municipal storm drains. Water rises within minutes. DO NOT attempt to drive or walk through street torrents. Move vertically above the 2nd floor immediately.',
+      blueprintTitle: '⚡ Flash Flood & Cloudburst Rapid Response Blueprint (<30-60 Min Window)',
+      blueprint: [
+        {
+          category: 'Immediate Vertical Ascent',
+          icon: '🏢',
+          badgeColor: '#ef4444',
+          title: '1. Instant Vertical Ascent Protocol',
+          points: [
+            { label: '60-Second Vertical Evacuation', text: 'Rush immediately to the 2nd floor, 3rd floor, or concrete rooftop. Do NOT waste time packing heavy suitcases or appliances.' },
+            { label: 'Never Enter Closed Attics', text: 'Avoid sealed roof cavities without an external exit hatch; rising flash surges can trap occupants against ceilings.' },
+            { label: 'Grab 30-Second Micro-Go-Bag', text: 'Take only essential pouch: ID cards, cell phone, powerbank, prescription pills, and rescue whistle.' },
+            { label: 'Debris Torrent Shielding', text: 'Stay clear of ground-floor glass windows facing upstream; rushing mud and logs exert catastrophic hydraulic impact.' }
+          ]
+        },
+        {
+          category: 'Torrential Vehicle Survival',
+          icon: '⚠️',
+          badgeColor: '#dc2626',
+          title: '2. Immediate Vehicle Abandonment & Egress',
+          points: [
+            { label: 'Abandon Trapped Vehicles in 10s', text: 'If your vehicle stalls in torrential runoff, unbuckle and evacuate the vehicle within 10 seconds. Do not attempt to push it.' },
+            { label: 'Climb to Roof or High Structure', text: 'Torrential current (>2 m/s) will sweep wading adults away; climb onto the car roof or cling to sturdy concrete pillars.' },
+            { label: 'Never Cross Washed Bridges', text: 'Flash torrents cause rapid bridge pier scour and culvert blowouts; never cross submerged concrete culverts.' },
+            { label: 'Steer Clear of Ravines & Nullahs', text: 'Dry storm ravines transform into 3-meter deep lethal torrents in seconds; stay at least 50m back from ravine edges.' }
+          ]
+        },
+        {
+          category: 'Rapid Power & Utility Cut',
+          icon: '⚡',
+          badgeColor: '#f59e0b',
+          title: '3. Rapid Electrical & Gas Shutdown',
+          points: [
+            { label: 'Instant Main Breaker Trip', text: 'Flip the main electrical MCB breaker immediately if accessible without stepping into standing floodwater.' },
+            { label: 'Avoid Downed Transformer Poles', text: 'Flash flows undermine utility poles and transformer frames; treat all street water as live electrical conductors.' },
+            { label: 'Fast Gas Cylinder Isolation', text: 'Twist LPG cylinder safety valves fully clockwise to closed position before ascending vertically.' },
+            { label: 'Solar Rooftop Inverter Isolation', text: 'De-energize solar DC isolator switches if water reaches floor level near inverter terminals.' }
+          ]
+        },
+        {
+          category: 'Flotation & Distress Signaling',
+          icon: '🛟',
+          badgeColor: '#0284c7',
+          title: '4. Personal Flotation & Rescue Strobes',
+          points: [
+            { label: 'Don Life Jackets Immediately', text: 'Fasten ISO-certified life jackets or buoyant swimming vests on children, non-swimmers, and seniors immediately.' },
+            { label: 'Improvised Buoyancy Rigs', text: 'If life vests are absent, lash empty sealed 20L water cans or closed plastic jerrycans together under arms.' },
+            { label: '3-Blast Whistle Distress Signal', text: 'Blow 3 sharp blasts on rescue whistles (international distress code) and activate mobile screen flashlights toward the sky.' },
+            { label: 'Bright Rooftop Markers', text: 'Spread bright orange, yellow, or red blankets across rooftop terraces for rapid helicopter and drone spotting.' }
+          ]
+        },
+        {
+          category: 'Livestock & Pet Release',
+          icon: '🐄',
+          badgeColor: '#10b981',
+          title: '5. Instant Halter Cut & Animal Freedom',
+          points: [
+            { label: 'Slash Ropes & Open Sheds', text: 'Cut all cattle halters and unlock shed gates instantly; free cows and goats will instinctively scale steep hillsides.' },
+            { label: 'Release Small Domestic Pets', text: 'Bring cats and dogs in your vertical ascent; never leave dogs chained in yards where water rises swiftly.' },
+            { label: 'Steer Clear of Hillside Berms', text: 'Torrential cloudbursts trigger sudden mudslides; move animals away from unreinforced earth cuts and retaining walls.' },
+            { label: 'Prioritize Human Life Safety', text: 'Never jump into torrential swirling flash currents to retrieve livestock; water velocity makes rescue impossible.' }
+          ]
+        },
+        {
+          category: 'Post-Torrent Hazards',
+          icon: '☣️',
+          badgeColor: '#8b5cf6',
+          title: '6. Mudflow & Water Contamination Defense',
+          points: [
+            { label: 'Inspect for Soil Liquefaction', text: 'Check foundation soil and hillside retaining walls for landslide fissures and sinkholes before descending.' },
+            { label: 'Beware of Displaced Vipers & Snakes', text: 'Flash floods drive venomous snakes (cobras, vipers) onto high roof ledges and trees; inspect perches carefully.' },
+            { label: 'Leptospirosis Prophylaxis', text: 'If waded through flash flood mud, consult emergency relief doctors for prophylactic Doxycycline tablets.' },
+            { label: 'Zero Raw Well Water Consumption', text: 'Do not drink from open wells inundated by cloudburst mud until wells are pumped and shock-chlorinated.' }
+          ]
+        }
+      ]
     },
     riverine_flood: {
       name: '🌊 Riverine Basin Overflow (Riverbank Spillage)',
@@ -115,7 +496,82 @@ export default function AiExplainerView({
       leadTime: '6 to 12 Hours Lead Time',
       actionTitle: 'Lateral Evacuation of People, Cattle & Vehicles to +15m Contour Line',
       waterDepthEst: '0.8m - 1.6m sustained backwater',
-      summary: 'Major river stage approaching danger mark. Gradual overland expansion will submerge riparian settlements in 3 distinct flood waves. Relocate vulnerable residents and unchain cattle now.'
+      summary: 'Major river stage approaching danger mark. Gradual overland expansion will submerge riparian settlements in 3 distinct flood waves. Relocate vulnerable residents and unchain cattle now.',
+      blueprintTitle: '🌊 Riverine Basin Overflow & Overland Inundation Blueprint (6-12h Lead Time)',
+      blueprint: [
+        {
+          category: 'Heavy Equipment & Farm Assets',
+          icon: '🚜',
+          badgeColor: '#0284c7',
+          title: '1. Hoisting Pumps, Grain & Heavy Machinery',
+          points: [
+            { label: 'Hoist Riverbank Irrigation Pumps', text: 'Dismantle and haul riverbank diesel and electric submersible pump sets to high-elevation farm trailers.' },
+            { label: 'Floor-by-Floor Asset Migration', text: 'Move grain sacks, fertilizers, TV sets, and deep freezers to first-floor mezzanines or lofts above historical high water marks.' },
+            { label: 'Elevate Inverters & Battery Banks', text: 'Disconnect and elevate solar battery banks and off-grid inverters at least 2 meters above base ground elevation.' },
+            { label: 'Shrink-Wrap Heavy Wooden Furniture', text: 'Wrap solid wood furniture legs in thick heavy-gauge polyethylene film to prevent deep waterlogging and warping.' }
+          ]
+        },
+        {
+          category: 'Staged Lateral Evacuation',
+          icon: '🚚',
+          badgeColor: '#f59e0b',
+          title: '2. Staged Lateral Evacuation & Route Timing',
+          points: [
+            { label: 'Evacuate via High-Ridge Radial Arteries', text: 'Use certified high-contour evacuation highways before low-lying causeways and river bridges submerge.' },
+            { label: 'Tractor & Harvester Convoy Staging', text: 'Move tractors, threshers, and farm trailers in organized daylight convoys to high national highway embankments.' },
+            { label: 'GPS Waypoint Sticking', text: 'Stick to center-lane certified roads; submerged river floodplains conceal deep canal ditches and 2m roadside dropoffs.' },
+            { label: '100% Full Fuel Tank Fill', text: 'Fill vehicle fuel tanks completely; local floodplain petrol pumps will be de-energized once river gauges hit danger marks.' }
+          ]
+        },
+        {
+          category: 'Riparian Livestock & Feed',
+          icon: '🐄',
+          badgeColor: '#10b981',
+          title: '3. Cattle Relocation to Flood Mounds (Kanti)',
+          points: [
+            { label: 'Herd Movement to Community Mounds', text: 'Guide cattle and sheep herds to multi-hectare earthen flood shelters (Kanti) 12 hours ahead of peak river crest.' },
+            { label: '7-Day Elevated Fodder Scaffolding', text: 'Transport dry hay bales and cattle feed to high flood berms; seal with tarpaulins to prevent rumen acidosis rot.' },
+            { label: 'Emergency Veterinary Inoculation', text: 'Administer Black Quarter (BQ) and Haemorrhagic Septicaemia (HS) emergency booster shots at staging mounds.' },
+            { label: 'High-Ground Freshwater Troughs', text: 'Set up high-ground water filtration troughs to prevent livestock from drinking river floodwater containing toxic silt.' }
+          ]
+        },
+        {
+          category: 'Vulnerable Family Citizens',
+          icon: '👨‍👩‍👧‍👦',
+          badgeColor: '#ef4444',
+          title: '4. Systematic Relocation of Seniors & Infants',
+          points: [
+            { label: 'Gram Panchayat Bus Evacuation', text: 'Coordinate with local authorities to transport nursing mothers, toddlers, and bedridden elders via high-clearance buses.' },
+            { label: '21-Day Medical Prescription Dispensary', text: 'Stock 3 weeks of chronic medications (dialysis supplies, insulin, cardiac drugs) in floatable waterproof dry-packs.' },
+            { label: 'Folding Cot Elevation in Camps', text: 'Avoid sleeping on floor level in temporary relief shelters; elevate bedding on folding cots to deter snakes and rodents.' },
+            { label: 'Off-Grid Family Rally Points', text: 'Establish a pre-agreed rendezvous point outside the river basin zone in case cellular base stations lose power.' }
+          ]
+        },
+        {
+          category: 'Borewell & Water Security',
+          icon: '🛡️',
+          badgeColor: '#8b5cf6',
+          title: '5. Borewell Sealing & Siphon Isolation',
+          points: [
+            { label: 'Cap Drinking Water Borewells', text: 'Screw threaded sanitary caps or seal casing heads with thick neoprene gaskets to prevent river silt contamination.' },
+            { label: 'Fill & Seal Overhead Storage Tanks', text: 'Fill overhead water storage tanks 100% full and lock inspection lids tightly before electric supply is cut.' },
+            { label: 'Tighten Backflow Flap Valves', text: 'Ensure domestic wastewater drain outlets have operational flap valves before river stages exceed outfall levels.' },
+            { label: 'Erect Riverfront Sandbag Dykes', text: 'Construct interlocking sandbag bunds along property river boundaries with polyethylene undersheets.' }
+          ]
+        },
+        {
+          category: 'Silt Reclamation & Drainage',
+          icon: '🌾',
+          badgeColor: '#06b6d4',
+          title: '6. Agricultural Silt Reclamation & Post-Flood Re-Entry',
+          points: [
+            { label: 'Cut Field Drainage Furrows', text: 'Excavate perimeter drainage trenches in submerged agricultural fields once river stage drops below bank-full discharge.' },
+            { label: 'Well Shock Chlorination Protocol', text: 'Pump silted well water out using slurry pumps, then shock-treat water with 50g bleaching powder per 1,000 liters.' },
+            { label: 'Gradual Basement Dewatering', text: 'Pump flooded basements gradually (1/3 volume per day) to prevent external groundwater hydrostatic pressure collapsing walls.' },
+            { label: 'Anti-Mosquito Larvicide Treatment', text: 'Spray Temephos or BTI larvicide over standing floodplain backwater pools to stop dengue and malaria vector breeding.' }
+          ]
+        }
+      ]
     },
     urban_drainage: {
       name: '🏙️ Urban Stormwater Drainage Failure & Waterlogging',
@@ -128,7 +584,82 @@ export default function AiExplainerView({
       leadTime: '12 to 24 Hours Lead Time',
       actionTitle: 'Deploy Sandbag Barriers & Elevate Ground-Floor Electronics',
       waterDepthEst: '0.3m - 0.6m localized waterlogging',
-      summary: 'Stormwater culverts choked with silt and debris. Underpasses and low-lying basements are at immediate risk of localized flooding. Seal toilet drains to prevent sewer backflow.'
+      summary: 'Stormwater culverts choked with silt and debris. Underpasses and low-lying basements are at immediate risk of localized flooding. Seal toilet drains to prevent sewer backflow.',
+      blueprintTitle: '🏙️ Urban Waterlogging & Basement Defense Blueprint (12-24h Lead Time)',
+      blueprint: [
+        {
+          category: 'Basement & Sump Defense',
+          icon: '🏢',
+          badgeColor: '#8b5cf6',
+          title: '1. Modular Barriers & Basement Sump Defense',
+          points: [
+            { label: 'Deploy Aluminum Floodgates', text: 'Mount interlocking modular aluminum barrier gates across basement parking entrance ramps and building entryways.' },
+            { label: 'Dual Submersible Dewatering Test', text: 'Test primary and backup diesel-powered 5HP sump pumps; clear leaf screens and intake grates of street silt.' },
+            { label: 'Mandatory Basement Car Evacuation', text: 'Enforce complete evacuation of all vehicles, bikes, and electrical inventory from B1/B2 subterranean basement levels.' },
+            { label: 'Stage Elevator Cabs on Top Floor', text: 'Park all residential and commercial elevator cabs on the top floor and shut down power to the elevator hoist motor room.' }
+          ]
+        },
+        {
+          category: 'Sewer Backflow Isolation',
+          icon: '🛡️',
+          badgeColor: '#0284c7',
+          title: '2. Sewer Backsurge & Floor Drain Sealing',
+          points: [
+            { label: 'Mechanical Expansion Rubber Plugs', text: 'Screw mechanical rubber pipe test plugs into all ground-floor shower traps, washing machine drains, and floor drains.' },
+            { label: '25kg Sandbag on Toilet Lid', text: 'Place heavy plastic sheeting over toilet bowl, shut the lid, and weight with a 25 kg sandbag to halt pressurized sewer backflow.' },
+            { label: 'Grease Trap & Sump Cover Sealing', text: 'Seal inspection chamber covers with heavy silicone bead gaskets to prevent municipal stormwater surcharge.' },
+            { label: 'De-energize Ground-Floor Sockets', text: 'Turn off sub-circuit breakers feeding ground-floor wall sockets (typically 30cm above floor) while keeping upper floors live.' }
+          ]
+        },
+        {
+          category: 'Civic Transit & Underpasses',
+          icon: '🚗',
+          badgeColor: '#f59e0b',
+          title: '3. Urban Underpass Avoidance & Parking SOP',
+          points: [
+            { label: 'Zero Underpass Ingress', text: 'Never enter railway underpasses, depressed expressway dips, or flooded bridge subways; water accumulates rapidly.' },
+            { label: 'Relocate to Multi-Level Ramps', text: 'Park four-wheelers and scooters on 2nd-floor multi-level parking plazas or designated high flyover ramps.' },
+            { label: 'Beware of Dislodged Manhole Covers', text: 'Stormwater backsurges pop cast-iron manhole covers open; never wade into murky water where invisible vortex traps exist.' },
+            { label: 'Avoid Driving Along Metro Medians', text: 'Stormwater runoff pools deeply along center dividers and elevated metro pillar footings; stick to crowned center lanes.' }
+          ]
+        },
+        {
+          category: 'Remote Work & Food Reserves',
+          icon: '💻',
+          badgeColor: '#10b981',
+          title: '4. Work-From-Home (WFH) & Emergency Pantry',
+          points: [
+            { label: 'Enforce Work-From-Home SOP', text: 'Switch enterprise workforce to remote operations 12 hours prior to forecast cloudburst bands to clear traffic arteries.' },
+            { label: 'Server Room UPS Protection', text: 'Verify high-floor data center UPS batteries and gracefully shut down low-level server racks and network switches.' },
+            { label: 'Inverter Power Conservation', text: 'Restrict residential inverters to emergency LED lights and phone chargers; do not run heavy ACs or microwaves.' },
+            { label: '4-Day Non-Perishable Pantry', text: 'Stock 4 days of dry pantry staples, sealed 20L water cans, and instant ready-to-eat meal packs.' }
+          ]
+        },
+        {
+          category: 'High-Density Residential SOP',
+          icon: '👨‍👩‍👧‍👦',
+          badgeColor: '#ef4444',
+          title: '5. High-Density Apartment & Ground Floor Safety',
+          points: [
+            { label: 'Ground-Floor Resident Relocation', text: 'Move elderly and infant residents from ground-floor flats to community clubhouses on 1st/2nd floors.' },
+            { label: 'Cordon Transformer DP Boxes', text: 'Cordon off outdoor municipal electricity transformer distribution boxes (DP boxes) with high-visibility hazard tape.' },
+            { label: 'Pre-Stage Potable Water Tankers', text: 'Request municipal potable water tankers on elevated podium streets before internal underground water pumps submerge.' },
+            { label: 'Building Floor-Warden Network', text: 'Establish floor-warden communication channels to relay hourly municipal flood drainage updates.' }
+          ]
+        },
+        {
+          category: 'Civic Restoration & Testing',
+          icon: '🔄',
+          badgeColor: '#06b6d4',
+          title: '6. Electrical Megger Testing & Mold Remediation',
+          points: [
+            { label: 'Insulation Megger Testing', text: 'Have certified electricians conduct Megger insulation resistance tests before restoring power to soaked conduit circuits.' },
+            { label: 'Underground Sump Bleach Scrub', text: 'Drain and scrub underground potable water tanks with chlorine solution to eliminate sewer cross-contamination.' },
+            { label: '24-Hour Mold Remediation', text: 'Strip soaked baseboards and wet drywall within 24 hours to prevent dangerous black mold (Stachybotrys) growth.' },
+            { label: 'Thermal Insecticidal Fogging', text: 'Coordinate with municipal health teams for thermal pyrethrum fogging across building compound corners.' }
+          ]
+        }
+      ]
     },
     dam_overflow: {
       name: '🛑 Dam Spillway Discharge & Sluice Gate Release',
@@ -141,7 +672,82 @@ export default function AiExplainerView({
       leadTime: '2 to 4 Hours Lead Time',
       actionTitle: 'Mandatory Complete Evacuation of Downstream Floodplains',
       waterDepthEst: '1.5m - 2.8m catastrophic discharge channel wave',
-      summary: 'Upstream dam at 98% full capacity; emergency spillway gates opening. Downstream riverbed flow will increase by 45,000 cusecs. Clear all low-lying bridges, farms, and riverbanks immediately.'
+      summary: 'Upstream dam at 98% full capacity; emergency spillway gates opening. Downstream riverbed flow will increase by 45,000 cusecs. Clear all low-lying bridges, farms, and riverbanks immediately.',
+      blueprintTitle: '🛑 Dam Spillway Discharge & Downstream Floodway Blueprint (2-4h Lead Time)',
+      blueprint: [
+        {
+          category: 'Riverbed Total Clearance',
+          icon: '🚨',
+          badgeColor: '#ef4444',
+          title: '1. Mandatory 100% Floodway Clearance',
+          points: [
+            { label: 'Evacuate 500m River Corridor', text: 'Evacuate all human presence within 500 meters of the river channel immediately; discharge surge velocity exceeds 4 m/s.' },
+            { label: 'Activate Siren & Public Address', text: 'Broadcast emergency loudspeaker alerts and sound siren towers across downstream villages and settlements.' },
+            { label: 'Halt River Mining & Ferry Boats', text: 'Immediately pull sand dredging boats, tourist ferries, and pontoon bridges onto high dry river bluffs.' },
+            { label: 'Barricade Low-Level Causeways', text: 'Close and barricade all submersible bridges and causeways; release wavefront overflows piers in under 45 minutes.' }
+          ]
+        },
+        {
+          category: 'Farm Fleet & Heavy Machinery',
+          icon: '🚜',
+          badgeColor: '#f59e0b',
+          title: '2. Heavy Plant & Farm Tractor Fast Convoy',
+          points: [
+            { label: 'Perpendicular Fleet Mobilization', text: 'Drive tractors, harvesters, and diesel tankers perpendicular to river flow toward high hillside contour highways.' },
+            { label: 'Hoist Riverbed Lift Pumps', text: 'Pull up electrical riverbed lift-irrigation pump assemblies with chain hoists before water level rises 2 meters.' },
+            { label: 'Move Solar Pump Inverters', text: 'Dismantle riverside solar pump panels and inverter frames outside the active discharge zone.' },
+            { label: 'Secure Chemical & Fuel Drums', text: 'Transport diesel barrels, pesticide containers, and chemical fertilizers away from floodplains to stop toxic water pollution.' }
+          ]
+        },
+        {
+          category: 'Livestock Downstream Exodus',
+          icon: '🐄',
+          badgeColor: '#10b981',
+          title: '3. Downstream Cattle Exodus to Hill Corrals',
+          points: [
+            { label: 'Cut Shed Halters Immediately', text: 'Free every animal immediately; release cows and buffaloes toward high-ridge pastures away from the discharge channel.' },
+            { label: 'Hilltop Community Holding Corrals', text: 'Herd village livestock into high-elevation school grounds or hilltop community corrals at +20m elevation.' },
+            { label: 'Tractor Trailer Hay Distribution', text: 'Transport dry fodder in tractor trailers directly to high-ground holding corrals.' },
+            { label: 'Waterway Exclusion Fencing', text: 'Erect temporary barricades to prevent disoriented cattle wandering back toward riverbank flood channels.' }
+          ]
+        },
+        {
+          category: 'Cusec Discharge Tracking',
+          icon: '📢',
+          badgeColor: '#0284c7',
+          title: '4. Cusec Flow Monitoring & Emergency Bags',
+          points: [
+            { label: 'Track Official Cusec Release Rates', text: 'Monitor Irrigation Department Cusec discharge notifications (e.g. 25,000 → 50,000 → 100,000 cusecs alerts).' },
+            { label: 'Deploy Amateur Radio (HAM)', text: 'Station disaster amateur radio (HAM) operators at local administrative offices in case cell towers flood.' },
+            { label: '2-Hour Rapid Evacuation Rucksack', text: 'Pack waterproof survival rucksacks with dry food, water purifying tablets, ID records, and emergency cash.' },
+            { label: 'Priority School Bus Evacuation', text: 'Coordinate emergency bus fleets to clear riverside schools and daycares first before access bridges submerge.' }
+          ]
+        },
+        {
+          category: 'Sluice & Canal Safety',
+          icon: '🛡️',
+          badgeColor: '#8b5cf6',
+          title: '5. Branch Canal Intake Closure & Dyke Defense',
+          points: [
+            { label: 'Close Branch Canal Regulators', text: 'Shut branch canal intake sluices to prevent spillway surge backflow from bursting secondary earthen canals.' },
+            { label: 'River Bend Embankment Armor', text: 'Reinforce acute river bend embankments with geo-textile sandbags and heavy boulder riprap to prevent breach scour.' },
+            { label: 'Isolate Riverside Effluent Ponds', text: 'Isolate industrial chemical holding lagoons to prevent catastrophic downstream toxic contamination spills.' },
+            { label: 'De-energize River Power Spans', text: 'De-energize river-crossing high-tension electricity transmission lines if water crests near line sag thresholds.' }
+          ]
+        },
+        {
+          category: 'Post-Spillway Recovery',
+          icon: '🔄',
+          badgeColor: '#06b6d4',
+          title: '6. Bridge Pier Sonic Scour Tests & Silt Clearing',
+          points: [
+            { label: 'Sonic Scour Bridge Inspections', text: 'Keep all river bridges closed to vehicular traffic until state highway engineers complete ultrasonic scour tests on piers.' },
+            { label: 'Flush Silted Jack-Well Intakes', text: 'Flush municipal drinking water intake jack-wells choked with dense reservoir bottom silt.' },
+            { label: 'Clear Silt from Farmlands', text: 'Clear heavy silt deposition from fertile agricultural bottomlands and orchards using earthmovers.' },
+            { label: 'NTU Turbidity & Coliform Testing', text: 'Verify NTU turbidity and coliform bacteria levels in laboratory assays before resuming municipal water supplies.' }
+          ]
+        }
+      ]
     },
     coastal_surge: {
       name: '🌊 Coastal Estuarine Surge & High-Tide Flood Ingress',
@@ -154,7 +760,82 @@ export default function AiExplainerView({
       leadTime: '4 to 6 Hours (Aligned with High Tide)',
       actionTitle: 'Inland Evacuation Away from Mangrove Creeks & Estuaries',
       waterDepthEst: '0.9m - 1.4m saline storm ingress',
-      summary: 'Astronomical spring high tide prevents monsoon runoff from draining into the sea, causing severe backwater accumulation across low-elevation coastal wards (e.g. Mira Bhayandar / coastal creeks).'
+      summary: 'Astronomical spring high tide prevents monsoon runoff from draining into the sea, causing severe backwater accumulation across low-elevation coastal wards (e.g. Mira Bhayandar / coastal creeks).',
+      blueprintTitle: '🌊 Coastal Estuarine Surge & High-Tide Flood Ingress Blueprint (4-6h Window)',
+      blueprint: [
+        {
+          category: 'Tidal Evacuation Window',
+          icon: '🌙',
+          badgeColor: '#0284c7',
+          title: '1. Low-Tide Evacuation Window & Inland Movement',
+          points: [
+            { label: 'Exploit Low-Tide Transit Window', text: 'Execute vehicular and asset evacuation strictly during low-tide windows before the astronomical spring tide peak.' },
+            { label: 'Relocate 1.5 km Inland', text: 'Move families and vehicles at least 1.5 km inland from tidal creeks, mangrove estuaries, and coastal esplanades.' },
+            { label: 'Track Astronomical Tide Charts', text: 'Cross-reference tide tables; meteorological storm surge adds 1.0m to 1.8m atop regular 4.5m spring tide crests.' },
+            { label: 'Barricade Coastal Causeway Roads', text: 'Avoid coastal highway causeways and mangrove boardwalks subject to tidal overwash and heavy spray.' }
+          ]
+        },
+        {
+          category: 'Marine Barrier & Flap Valves',
+          icon: '🛡️',
+          badgeColor: '#8b5cf6',
+          title: '2. Marine Non-Return Flap Valves & Sandbag Berms',
+          points: [
+            { label: 'Verify Coastal Flap Gate Closures', text: 'Ensure municipal storm drain outfalls to the sea have clear flap gates that seal shut against incoming seawater.' },
+            { label: 'Dual-Row Marine Sandbag Berms', text: 'Build interlocking sandbag berms with plastic membranes around sea-facing building entryways and compounds.' },
+            { label: 'Corrosion-Resistant Sump Pumps', text: 'Deploy epoxy-coated or 316 stainless-steel submersible pumps for handling corrosive saltwater dewatering.' },
+            { label: 'Seal Underground Cable Ducts', text: 'Plug subterranean electrical conduits with expanding marine polyurethane foam to block saltwater entry.' }
+          ]
+        },
+        {
+          category: 'Boats & Marine Craft',
+          icon: '⛵',
+          badgeColor: '#f59e0b',
+          title: '3. Double-Mooring Boats & Port Vessel Safety',
+          points: [
+            { label: 'Double-Moor Fishing Trawlers', text: 'Secure mechanized fishing trawlers in sheltered inner creek docks with double nylon mooring warps.' },
+            { label: 'Haul Small Dinghies Beyond High Dunes', text: 'Drag small catamarans and fibreglass boats above the 100-year storm tide line; lash to sturdy palm trunks.' },
+            { label: 'Disconnect Marina Shore Power', text: 'Unplug and isolate dockside 230V/415V electrical pedestals to eliminate deadly saltwater arcing.' },
+            { label: 'Hoist Outboard Motors & Fuel', text: 'Remove outboard boat engines, battery boxes, and fuel containers; store in high elevated warehouse lofts.' }
+          ]
+        },
+        {
+          category: 'Saline Corrosion Protection',
+          icon: '🔌',
+          badgeColor: '#ef4444',
+          title: '4. Saltwater Corrosion & Electronics Defense',
+          points: [
+            { label: 'Elevate Electrical Motors & Inverters', text: 'Saltwater causes instant electrolytic corrosion; hoist motors, solar inverters, and pumps above 2m height.' },
+            { label: 'Coat Terminals with Marine Grease', text: 'Spray silicone or marine corrosion-inhibitor grease over vehicle battery terminals and main electrical busbars.' },
+            { label: 'Triple-Seal Documents & Credentials', text: 'Saline dampness degrades paper rapidly; vacuum-seal property deeds, insurance, and medical records in dry-bags.' },
+            { label: 'Elevate Consumer Electronics', text: 'Relocate computers, televisions, and kitchen appliances to upper floor living spaces.' }
+          ]
+        },
+        {
+          category: 'Coastal Community & Fisheries',
+          icon: '🐟',
+          badgeColor: '#10b981',
+          title: '5. Aquaculture Netting & Cyclone Shelter Evacuation',
+          points: [
+            { label: 'Install Aquaculture Overflow Nets', text: 'Erect fine-mesh nylon perimeter nets around shrimp and fish ponds to prevent stock escape during high surge.' },
+            { label: 'Evacuate Thatched Coastal Hamlets', text: 'Move families living in unreinforced kutchha coastal dwellings to designated multi-story concrete cyclone-flood shelters.' },
+            { label: 'Store 50L Potable Fresh Water/Person', text: 'Coastal well salinization is instant; store at least 50 liters of bottled potable fresh water per person.' },
+            { label: 'Wear Maritime Lifejackets', text: 'Ensure all family members wear maritime-grade life vests equipped with attached distress whistles and reflectors.' }
+          ]
+        },
+        {
+          category: 'Post-Surge Salinity Flushing',
+          icon: '🔄',
+          badgeColor: '#06b6d4',
+          title: '6. Fresh Water Washdown & Soil Desalination',
+          points: [
+            { label: 'Freshwater Equipment Washdown', text: 'Rinse all seawater-exposed machinery, vehicles, and structural steel with high-pressure clean fresh water immediately.' },
+            { label: 'Agricultural Soil Leaching Furrows', text: 'Dig deep drainage furrows and flush inundated soils with fresh monsoon rainwater to leach out sodium salts.' },
+            { label: 'Pump Out Saline Coastal Wells', text: 'Pump out brackish groundwater from coastal dug-wells and verify TDS (Total Dissolved Solids) before drinking.' },
+            { label: 'Clear Marine Debris & Fish Offal', text: 'Collect and bury decaying marine flotsam and fish offal promptly to prevent coastal epidemic outbreaks.' }
+          ]
+        }
+      ]
     }
   };
 
@@ -264,11 +945,11 @@ export default function AiExplainerView({
       percentage: 100,
       description: 'Rigorous empirical evaluation against 10,000 unseen held-out validation flood and non-flood events.',
       evidence: [
-        'High Accuracy: 91.24% on native XGBoost pipeline (91.65% ensemble)',
-        'Exceptional ROC-AUC: 0.9623 across all decision thresholds',
-        'Life-Critical Recall (Sensitivity): 84.77% (successfully detects 1,676 out of 1,977 true flood events, minimizing life-threatening false negatives)',
-        'Precision: 74.46% | F1-Score: 0.7928 | PR-AUC: 0.8569 | Brier Loss: 0.0616',
-        'Full 10,000-sample Confusion Matrix: True Negatives: 7,448 | False Positives: 575 | False Negatives: 301 | True Positives: 1,676'
+        'High Accuracy: 91.47% on native XGBoost pipeline (93.85% Super-Stack Ensemble)',
+        'Exceptional ROC-AUC: 0.9676 on XGBoost (0.9820 on Super-Stack Ensemble) across all decision thresholds',
+        'Life-Critical Recall (Sensitivity): 92.75% XGBoost (95.10% Ensemble, minimizing life-threatening false negatives)',
+        'Precision: 90.44% | F1-Score: 0.9158 | PR-AUC: 0.9602 | Brier Loss: 0.0625',
+        'Full 12,417-sample Confusion Matrix: True Negatives: 5,600 | False Positives: 609 | False Negatives: 450 | True Positives: 5,758'
       ],
       artifact: 'models/metrics.json, notebooks/05_model_evaluation.ipynb & tests/test_prediction.py',
       icon: '📈'
@@ -549,150 +1230,65 @@ export default function AiExplainerView({
             padding: '24px',
             boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
           }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>
-              📋 Detailed Flood Evacuation Blueprint: What & How to Evacuate
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '20px' }}>
-              
-              {/* CATEGORY 1: ELECTRONICS & VALUABLES */}
-              <div style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '12px',
-                padding: '20px',
-                borderTop: '4px solid #0284c7'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase' }}>Assets & Appliances</span>
-                  <span style={{ fontSize: '1.3rem' }}>🔌</span>
-                </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
-                  1. How to Evacuate Electronics & Home Appliances
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
-                  <li><strong style={{ color: '#f8fafc' }}>Cut Main Power Breaker (MCB):</strong> Shut down the main electrical breaker before water reaches wall outlets. Never touch wet switches or plugs.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Elevate Large Appliances:</strong> Move refrigerators, washing machines, and inverter batteries onto sturdy tables, concrete plinths, or to the first floor.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>LPG Cylinder Lockdown:</strong> Fasten gas cylinders securely with nylon ropes to high window grilles. Floating cylinders can shear pipes and ignite explosions.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Triple-Bag Documents:</strong> Place property deeds, passports, degrees, and Aadhaar cards in sealed waterproof dry-pouches; carry on your chest pack.</li>
-                </ul>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
+                  📋 {activeScenarioData.blueprintTitle || 'Detailed Flood Evacuation Blueprint: What & How to Evacuate'}
+                </h3>
+                <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.82rem' }}>
+                  Engineered emergency evacuation directives tailored to {activeScenarioData.name} ({activeScenarioData.leadTime}).
+                </p>
               </div>
-
-              {/* CATEGORY 2: VEHICLES & TRANSIT */}
-              <div style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '12px',
-                padding: '20px',
-                borderTop: '4px solid #f59e0b'
+              <span style={{
+                background: 'rgba(2, 132, 199, 0.15)',
+                border: '1px solid #0284c7',
+                color: '#38bdf8',
+                padding: '5px 14px',
+                borderRadius: '20px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase' }}>Vehicle & Transit Safety</span>
-                  <span style={{ fontSize: '1.3rem' }}>🚗</span>
-                </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
-                  2. How to Evacuate Vehicles & Prevent Drowning
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
-                  <li><strong style={{ color: '#f8fafc' }}>Relocate to Multi-Level Parking:</strong> Move cars and bikes 12 hours ahead to high flyovers, elevated multi-level parking ramps, or hilltop streets.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>"Turn Around, Don't Drown":</strong> 12 inches (30 cm) of water floats cars; engine sucks water through air intake causing total hydrostatic lock.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Never Drive Through Underpasses:</strong> Railway underpasses fill like bathtubs within 10 minutes, hiding 3-meter deep lethal water traps.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Car Stall Escape:</strong> If your car is stalled in water, unbuckle instantly, roll down the window, climb to the roof, and do not attempt to push the car.</li>
-                </ul>
-              </div>
+                🎯 Dynamic SOP: {activeScenarioData.type}
+              </span>
+            </div>
 
-              {/* CATEGORY 3: FAMILY & VULNERABLE CITIZENS */}
-              <div style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '12px',
-                padding: '20px',
-                borderTop: '4px solid #ef4444'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>Vulnerable Populations</span>
-                  <span style={{ fontSize: '1.3rem' }}>👨‍👩‍👧‍👦</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+              {activeScenarioData.blueprint && activeScenarioData.blueprint.map((card, idx) => (
+                <div key={idx} style={{
+                  background: '#0f172a',
+                  border: '1px solid #1e293b',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  borderTop: `4px solid ${card.badgeColor || '#0284c7'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: card.badgeColor || '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {card.category}
+                      </span>
+                      <span style={{ fontSize: '1.3rem' }}>{card.icon}</span>
+                    </div>
+                    <h4 style={{ margin: '0 0 12px', fontSize: '0.98rem', fontWeight: 700, color: '#f8fafc', lineHeight: 1.3 }}>
+                      {card.title}
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+                      {card.points.map((pt, pIdx) => (
+                        <li key={pIdx} style={{ marginBottom: '6px' }}>
+                          <strong style={{ color: '#f8fafc' }}>{pt.label}: </strong>
+                          {pt.text}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
-                  3. Evacuating Elderly, Bedridden & Infants
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
-                  <li><strong style={{ color: '#f8fafc' }}>Phase 1 Pre-Evacuation:</strong> Evacuate elderly family members during daylight hours while ground access roads are dry.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>14-Day Medication Pack:</strong> Pack insulin, cardiac pills, and blood pressure medications in airtight floatable dry-boxes with written prescriptions.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Portable Medical Oxygen:</strong> Ensure portable oxygen cylinders and battery-operated nebulizers are charged and loaded into transport first.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>NDRF Boat Coordination:</strong> Register bedridden citizens with municipal emergency dispatch (112) for priority inflatable boat extraction.</li>
-                </ul>
-              </div>
-
-              {/* CATEGORY 4: LIVESTOCK & PETS */}
-              <div style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '12px',
-                padding: '20px',
-                borderTop: '4px solid #10b981'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>Livestock & Pets</span>
-                  <span style={{ fontSize: '1.3rem' }}>🐄</span>
-                </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
-                  4. How to Evacuate Cattle, Farm Animals & Pets
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
-                  <li><strong style={{ color: '#f8fafc' }}>UNCHAIN CATTLE IMMEDIATELY:</strong> Never leave cows or goats tied in stalls. A tethered cow will drown in 3 feet of water. Unchained cattle naturally swim to high ground.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Move to Earthen Berms:</strong> Lead herds to elevated earthen community flood mounds (Kanti) constructed above the 100-year flood contour.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Elevate Dry Fodder:</strong> Store hay bales and feed on elevated wooden platforms wrapped in tarps to prevent lethal rumen rot.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Domestic Pets:</strong> Transport dogs and cats in rigid carriers with waterproof ID tags, leashes, and 3 days of dry pet food.</li>
-                </ul>
-              </div>
-
-              {/* CATEGORY 5: HOME SEWAGE & DRAIN ISOLATION */}
-              <div style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '12px',
-                padding: '20px',
-                borderTop: '4px solid #8b5cf6'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#8b5cf6', textTransform: 'uppercase' }}>Drainage & Siphon Sealing</span>
-                  <span style={{ fontSize: '1.3rem' }}>🛡️</span>
-                </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
-                  5. Preventing Sewer Blackwater Ingress
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
-                  <li><strong style={{ color: '#f8fafc' }}>Plug Floor Drains:</strong> Insert mechanical expanding rubber plugs or water-filled heavy bags into ground-floor shower and floor drains.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Sandbag the Toilet:</strong> Line the toilet bowl with heavy plastic, close lid, and place a 25 kg sandbag on top to block pressurized sewer backsurge.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Pyramid Sandbagging:</strong> Stack sandbags against entry doors in a 1:3 pyramid ratio (base 3 sandbags wide, height 1 bag).</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Exterior Non-Return Valves:</strong> Check that municipal sewer connection inspection chambers have functioning flap valves.</li>
-                </ul>
-              </div>
-
-              {/* CATEGORY 6: POST-FLOOD RE-ENTRY */}
-              <div style={{
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '12px',
-                padding: '20px',
-                borderTop: '4px solid #06b6d4'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#06b6d4', textTransform: 'uppercase' }}>Post-Flood Protocol</span>
-                  <span style={{ fontSize: '1.3rem' }}>🔄</span>
-                </div>
-                <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>
-                  6. Safe Re-Entry & Decontamination
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.83rem', color: '#cbd5e1', lineHeight: 1.6 }}>
-                  <li><strong style={{ color: '#f8fafc' }}>Wait for Civil Defense "All-Clear":</strong> Do not re-enter flood-damaged buildings until engineers certify structural foundations.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Zero Flames / Matches:</strong> Inspect for ruptured gas pipes. Ventilate the home thoroughly before flipping any electrical switch.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Boil Water Advisory:</strong> Tap water is contaminated with raw sewage and pathogens. Boil water vigorously for 3 minutes before drinking.</li>
-                  <li><strong style={{ color: '#f8fafc' }}>Silt Sanitization:</strong> Wear thick rubber boots. Disinfect all mud-soaked walls and floors with a 1:10 household bleach solution.</li>
-                </ul>
-              </div>
-
+              ))}
             </div>
           </div>
 
@@ -1090,149 +1686,561 @@ export default function AiExplainerView({
       )}
 
       {/* ========================================================= */}
-      {/* SUB-TAB 5: INTERACTIVE AI FLOOD EVACUATION ASSISTANT      */}
+      {/* SUB-TAB 5: INTERACTIVE AI FLOOD EVACUATION COPILOT (LLM)  */}
       {/* ========================================================= */}
       {activeSubTab === 'assistant' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* ASSISTANT HEADER & CONTROLS BAR */}
           <div style={{
             background: '#0b1120',
-            border: '1px solid rgba(56, 189, 248, 0.18)',
+            border: '1px solid rgba(56, 189, 248, 0.22)',
             borderRadius: '16px',
-            padding: '24px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.3)'
+            padding: '18px 24px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '16px'
           }}>
-            <h2 style={{ margin: '0 0 6px', fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
-              💬 AI Flood Evacuation Specialist
-            </h2>
-            <p style={{ margin: '0 0 20px', fontSize: '0.85rem', color: '#94a3b8' }}>
-              Click any common flood evacuation dilemma or type custom questions to get instant, hydro-model backed evacuation blueprints.
-            </p>
-
-            {/* PRE-SET QUESTION PILLS */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
-                Featured Flood Emergency Inquiries:
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                <span style={{ fontSize: '1.4rem' }}>🤖</span>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc' }}>
+                  FloodRisk AI Evacuation Copilot
+                </h2>
+                <span style={{
+                  background: geminiApiKey ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                  color: geminiApiKey ? '#34d399' : '#38bdf8',
+                  border: `1px solid ${geminiApiKey ? '#10b981' : '#0284c7'}`,
+                  borderRadius: '12px',
+                  padding: '3px 10px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800
+                }}>
+                  {geminiApiKey ? '✨ Gemini 1.5 Flash Connected' : '🌊 HydroNet 2.0 (Embedded)'}
+                </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }}>
-                {floodKnowledgeBase.map((sq, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setUserQuery(sq.q);
-                      setAiAnswer(sq.a);
-                    }}
-                    style={{
-                      background: '#0f172a',
-                      border: '1px solid #1e293b',
-                      borderRadius: '10px',
-                      padding: '12px 14px',
-                      textAlign: 'left',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      color: '#f8fafc',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <span>🌊</span>
-                    <span>{sq.q}</span>
-                  </button>
-                ))}
-              </div>
+              <p style={{ margin: 0, fontSize: '0.84rem', color: '#94a3b8' }}>
+                Context-grounded conversational AI assistant providing life-safety evacuation blueprints, vehicle egress steps, and flood hazard mitigation.
+              </p>
             </div>
 
-            {/* QUERY INPUT FORM */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            {/* ACTION TOGGLES */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              
+              {/* AUTO-READ VOICE TOGGLE */}
+              <button
+                onClick={() => setAutoReadAloud(prev => !prev)}
+                style={{
+                  background: autoReadAloud ? 'rgba(2, 132, 199, 0.2)' : '#0f172a',
+                  border: `1px solid ${autoReadAloud ? '#0284c7' : '#1e293b'}`,
+                  color: autoReadAloud ? '#38bdf8' : '#64748b',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="Automatically read aloud new AI responses"
+              >
+                <span>{autoReadAloud ? '🔊 Auto-Voice: ON' : '🔈 Auto-Voice: OFF'}</span>
+              </button>
+
+              {/* API KEY SETTINGS BUTTON */}
+              <button
+                onClick={() => setShowKeyModal(true)}
+                style={{
+                  background: '#0f172a',
+                  border: '1px solid #1e293b',
+                  color: '#94a3b8',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>⚙️ Gemini Key</span>
+              </button>
+
+              {/* CLEAR CHAT BUTTON */}
+              <button
+                onClick={() => {
+                  stopSpeaking();
+                  setMessages([
+                    {
+                      id: `msg-reset-${Date.now()}`,
+                      sender: 'assistant',
+                      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      model: geminiApiKey ? 'Google Gemini 1.5 Flash' : 'HydroNet 2.0 (Embedded)',
+                      text: `Conversation cleared. Ready for your flood evacuation and emergency questions.`,
+                      source: 'system'
+                    }
+                  ]);
+                }}
+                style={{
+                  background: '#0f172a',
+                  border: '1px solid #1e293b',
+                  color: '#ef4444',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                title="Clear chat history"
+              >
+                🗑️ Clear
+              </button>
+            </div>
+          </div>
+
+          {/* ACTIVE SPEAKING AUDIO STATUS BANNER */}
+          {isSpeaking && (
+            <div style={{
+              background: 'rgba(2, 132, 199, 0.15)',
+              border: '1px solid #0284c7',
+              borderRadius: '12px',
+              padding: '10px 18px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: '0 2px 10px rgba(2, 132, 199, 0.2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '1.2rem', animation: 'spin 2s linear infinite' }}>🔊</span>
+                <span style={{ fontSize: '0.86rem', color: '#38bdf8', fontWeight: 600 }}>
+                  Reading evacuation response out loud...
+                </span>
+              </div>
+              <button
+                onClick={stopSpeaking}
+                style={{
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '4px 12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                ⏹️ Stop Voice
+              </button>
+            </div>
+          )}
+
+          {/* QUICK PROMPT EMERGENCY CHIPS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              ⚡ Quick Emergency Dilemmas (Click to Ask):
+            </div>
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              overflowX: 'auto',
+              paddingBottom: '4px'
+            }}>
+              {[
+                { label: '🚗 Car Stalled in Floodwater', query: 'My car stalled in rising floodwater, how do I escape safely?' },
+                { label: '⚡ Main Breaker & Wall Sockets', query: 'Water is touching wall sockets, when should I turn off the main circuit breaker (MCB)?' },
+                { label: '🚽 Toilet Sewer Backflow', query: 'How do I prevent municipal sewage backflow through ground floor toilets and drains?' },
+                { label: '👨‍👩‍👧‍👦 Elderly & Medical Oxygen', query: 'How do I safely evacuate bedridden elderly relatives and medical oxygen equipment?' },
+                { label: '🐄 Livestock Unchaining', query: 'What is the immediate protocol for cattle, buffaloes, and farm livestock in floodways?' },
+                { label: '🆘 Trapped on Rooftop', query: 'We are trapped on the rooftop surrounded by deep floodwater, how should we signal rescue?' }
+              ].map((chip, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSendUserMessage(chip.query)}
+                  disabled={isGenerating}
+                  style={{
+                    background: '#0f172a',
+                    border: '1px solid #1e293b',
+                    borderRadius: '20px',
+                    padding: '8px 14px',
+                    color: '#e2e8f0',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: isGenerating ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    opacity: isGenerating ? 0.6 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isGenerating) {
+                      e.currentTarget.style.borderColor = '#0284c7';
+                      e.currentTarget.style.background = '#1e293b';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isGenerating) {
+                      e.currentTarget.style.borderColor = '#1e293b';
+                      e.currentTarget.style.background = '#0f172a';
+                    }
+                  }}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* CHAT CONTAINER */}
+          <div style={{
+            background: '#070d19',
+            border: '1px solid #1e293b',
+            borderRadius: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '560px',
+            overflow: 'hidden',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.4)'
+          }}>
+            
+            {/* MESSAGES SCROLL AREA */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}>
+              {messages.map((msg) => {
+                const isUser = msg.sender === 'user';
+                return (
+                  <div
+                    key={msg.id}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: isUser ? 'flex-end' : 'flex-start',
+                      maxWidth: '100%'
+                    }}
+                  >
+                    {/* BUBBLE HEADER (Metadata) */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '4px',
+                      fontSize: '0.74rem',
+                      color: '#64748b'
+                    }}>
+                      {!isUser && (
+                        <span style={{
+                          background: 'rgba(56, 189, 248, 0.15)',
+                          color: '#38bdf8',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          fontWeight: 700,
+                          fontSize: '0.7rem'
+                        }}>
+                          {msg.model || 'FloodRisk Copilot'}
+                        </span>
+                      )}
+                      <span>{msg.time}</span>
+                    </div>
+
+                    {/* BUBBLE BODY */}
+                    <div style={{
+                      background: isUser ? '#0284c7' : '#0f172a',
+                      color: isUser ? '#ffffff' : '#f1f5f9',
+                      border: isUser ? 'none' : '1px solid rgba(56, 189, 248, 0.25)',
+                      borderRadius: isUser ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
+                      padding: '14px 18px',
+                      maxWidth: '85%',
+                      lineHeight: 1.6,
+                      fontSize: '0.88rem',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                      wordBreak: 'break-word'
+                    }}>
+                      {/* Render text with formatting and glowing cursor if streaming */}
+                      <div style={{ whiteSpace: 'pre-line' }}>
+                        {msg.text}
+                        {msg.isStreaming && (
+                          <span style={{
+                            display: 'inline-block',
+                            width: '8px',
+                            height: '14px',
+                            background: '#38bdf8',
+                            marginLeft: '4px',
+                            verticalAlign: 'middle',
+                            animation: 'pulse 1s infinite'
+                          }} />
+                        )}
+                      </div>
+
+                      {/* BUBBLE ACTION CONTROLS */}
+                      {!isUser && !msg.isStreaming && msg.text && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          marginTop: '10px',
+                          paddingTop: '8px',
+                          borderTop: '1px solid rgba(255,255,255,0.08)'
+                        }}>
+                          <button
+                            onClick={() => handleSpeakText(msg.text, msg.id)}
+                            style={{
+                              background: activeSpeakingMsgId === msg.id ? '#ef4444' : '#070d19',
+                              border: `1px solid ${activeSpeakingMsgId === msg.id ? '#ef4444' : '#1e293b'}`,
+                              color: activeSpeakingMsgId === msg.id ? '#ffffff' : '#38bdf8',
+                              borderRadius: '6px',
+                              padding: '3px 8px',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>{activeSpeakingMsgId === msg.id ? '⏹️ Stop' : '🔊 Read Aloud'}</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              try {
+                                navigator.clipboard.writeText(msg.text);
+                                alert('Copied evacuation advisory to clipboard!');
+                              } catch (e) {}
+                            }}
+                            style={{
+                              background: '#070d19',
+                              border: '1px solid #1e293b',
+                              color: '#94a3b8',
+                              borderRadius: '6px',
+                              padding: '3px 8px',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            📋 Copy
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* INPUT COMPOSER AREA */}
+            <div style={{
+              padding: '14px 18px',
+              borderTop: '1px solid #1e293b',
+              background: '#0b1120',
+              display: 'flex',
+              gap: '10px',
+              alignItems: 'center'
+            }}>
+              
+              {/* MICROPHONE BUTTON */}
+              <button
+                onClick={toggleMicListening}
+                style={{
+                  background: isListening ? '#ef4444' : '#0f172a',
+                  border: `1px solid ${isListening ? '#ef4444' : '#1e293b'}`,
+                  color: '#ffffff',
+                  borderRadius: '10px',
+                  width: '44px',
+                  height: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.1rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  boxShadow: isListening ? '0 0 12px rgba(239, 68, 68, 0.6)' : 'none'
+                }}
+                title={isListening ? 'Listening to speech... Click to stop' : 'Click to speak emergency question'}
+              >
+                {isListening ? '🛑' : '🎤'}
+              </button>
+
+              {/* TEXT INPUT */}
               <input
                 type="text"
-                placeholder="Ask how to evacuate in your flood situation (e.g., 'How to build sandbag barrier?', 'Trapped in waterlogging?')..."
-                value={userQuery}
-                onChange={(e) => setUserQuery(e.target.value)}
+                placeholder={
+                  isListening
+                    ? '🎙️ Listening... Speak your emergency question clearly...'
+                    : "Ask FloodRisk Copilot (e.g., 'Water is rising near door, what should I do first?')..."
+                }
+                value={inputQuery}
+                onChange={(e) => setInputQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && userQuery.trim()) {
-                    const match = floodKnowledgeBase.find(q => q.q.toLowerCase().includes(userQuery.toLowerCase())) || {
-                      a: `Emergency Flood Action Plan for "${userQuery}":\n1. Check water depth: Never step into moving water > 6 inches.\n2. Ascend to highest concrete structural floor immediately.\n3. Turn off main circuit breaker (MCB) to prevent water electrification.\n4. Call emergency dispatch 112 / State Disaster Management 1070 with your exact GPS coordinates.`
-                    };
-                    setAiAnswer(match.a);
+                  if (e.key === 'Enter') {
+                    handleSendUserMessage();
                   }
                 }}
+                disabled={isGenerating}
                 style={{
                   flex: 1,
                   padding: '12px 16px',
                   borderRadius: '10px',
                   border: '1px solid #1e293b',
-                  background: '#0f172a',
+                  background: '#070d19',
                   color: '#f8fafc',
-                  fontSize: '0.9rem',
-                  outline: 'none'
+                  fontSize: '0.88rem',
+                  outline: 'none',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)'
                 }}
               />
+
+              {/* SEND BUTTON */}
               <button
-                onClick={() => {
-                  if (!userQuery.trim()) return;
-                  const match = floodKnowledgeBase.find(q => q.q.toLowerCase().includes(userQuery.toLowerCase())) || {
-                    a: `Emergency Flood Protocol for "${userQuery}":\n1. Check water depth: Never step into moving water > 6 inches.\n2. Ascend to highest concrete structural floor immediately.\n3. Turn off main circuit breaker (MCB) to prevent water electrification.\n4. Call emergency dispatch 112 / State Disaster Management 1070 with your exact GPS coordinates.`
-                  };
-                  setAiAnswer(match.a);
-                }}
+                onClick={() => handleSendUserMessage()}
+                disabled={isGenerating || !inputQuery.trim()}
                 style={{
-                  background: '#0284c7',
-                  color: '#ffffff',
+                  background: isGenerating || !inputQuery.trim() ? '#1e293b' : '#0284c7',
+                  color: isGenerating || !inputQuery.trim() ? '#64748b' : '#ffffff',
                   border: 'none',
                   borderRadius: '10px',
-                  padding: '12px 22px',
-                  fontSize: '0.9rem',
+                  padding: '12px 20px',
+                  fontSize: '0.88rem',
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                  cursor: isGenerating || !inputQuery.trim() ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: isGenerating || !inputQuery.trim() ? 'none' : '0 2px 10px rgba(2, 132, 199, 0.4)',
+                  transition: 'all 0.15s'
                 }}
               >
-                Analyze Flood SOP
+                <span>{isGenerating ? 'Analyzing...' : 'Ask AI 🚀'}</span>
               </button>
             </div>
 
-            {/* AI RESPONSE BOX */}
-            {aiAnswer && (
+          </div>
+
+          {/* GEMINI API KEY MODAL */}
+          {showKeyModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: '20px'
+            }}>
               <div style={{
-                background: '#0f172a',
+                background: '#0b1120',
                 border: '1px solid rgba(56, 189, 248, 0.3)',
-                borderRadius: '12px',
-                padding: '20px',
-                position: 'relative'
+                borderRadius: '16px',
+                padding: '24px',
+                maxWidth: '500px',
+                width: '100%',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.6)'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '1.1rem' }}>🤖</span>
-                    <strong style={{ color: '#38bdf8', fontSize: '0.92rem' }}>AI Flood Specialist Response:</strong>
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#f8fafc', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>✨</span> Google Gemini API Configuration
+                  </h3>
                   <button
-                    onClick={() => handleSpeak(aiAnswer)}
-                    style={{
-                      background: '#0b1120',
-                      border: '1px solid #0284c7',
-                      color: '#38bdf8',
-                      borderRadius: '6px',
-                      padding: '4px 10px',
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
+                    onClick={() => setShowKeyModal(false)}
+                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.1rem', cursor: 'pointer' }}
                   >
-                    🔊 Read Aloud
+                    ✕
                   </button>
                 </div>
 
-                <div style={{ fontSize: '0.86rem', color: '#cbd5e1', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-                  {aiAnswer}
+                <p style={{ fontSize: '0.84rem', color: '#94a3b8', lineHeight: 1.5, margin: '0 0 16px' }}>
+                  Enter your Google Gemini API key to enable live cloud multi-turn conversational reasoning. If no key is set, the system seamlessly uses the high-precision embedded HydroNet engine.
+                </p>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '6px' }}>
+                    Gemini API Key:
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    defaultValue={geminiApiKey}
+                    id="gemini_key_input"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #1e293b',
+                      background: '#070d19',
+                      color: '#f8fafc',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: '0.78rem', color: '#38bdf8', textDecoration: 'none', fontWeight: 600 }}
+                  >
+                    Get Free Gemini Key ↗
+                  </a>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => handleSaveApiKey('')}
+                      style={{
+                        background: '#0f172a',
+                        border: '1px solid #1e293b',
+                        color: '#ef4444',
+                        borderRadius: '8px',
+                        padding: '8px 14px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Remove Key
+                    </button>
+                    <button
+                      onClick={() => {
+                        const val = document.getElementById('gemini_key_input')?.value || '';
+                        handleSaveApiKey(val);
+                      }}
+                      style={{
+                        background: '#0284c7',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '8px 18px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Save Key
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
-
-          </div>
+            </div>
+          )}
 
         </div>
       )}

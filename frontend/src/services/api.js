@@ -6,10 +6,10 @@
 
 const API_BASE = 'http://localhost:8000/api';
 
-export async function predictFloodRisk(parameters, modelType = 'xgboost') {
+export async function predictFloodRisk(parameters, modelType = 'ensemble') {
   // Retry loop: ensure request reaches the trained ML model backend
   let lastError = null;
-  const url = modelType && modelType !== 'xgboost' 
+  const url = modelType && modelType !== 'ensemble' 
     ? `${API_BASE}/predict?model=${encodeURIComponent(modelType)}` 
     : `${API_BASE}/predict`;
 
@@ -495,10 +495,15 @@ export async function fetchRainfallImpact(parameters) {
   }
 }
 
-export async function fetchWeeklyReports(location, lat, lng) {
+export async function fetchWeeklyReports(location, lat, lng, telemetry = {}) {
   try {
-    const locEnc = encodeURIComponent(location || 'Mira Bhayandar');
-    const res = await fetch(`${API_BASE}/reports/weekly?location=${locEnc}&lat=${lat || 19.295}&lng=${lng || 72.854}`);
+    const locEnc = encodeURIComponent(location || 'Bengaluru');
+    const r24 = telemetry.rainfall24h !== undefined ? `&rainfall_24h=${telemetry.rainfall24h}` : '';
+    const r72 = telemetry.rainfall72h !== undefined ? `&rainfall_72h=${telemetry.rainfall72h}` : '';
+    const prob = telemetry.probability !== undefined ? `&probability=${telemetry.probability}` : '';
+    const elev = telemetry.elevation !== undefined ? `&elevation=${telemetry.elevation}` : '';
+    const temp = telemetry.temperature !== undefined ? `&temperature=${telemetry.temperature}` : '';
+    const res = await fetch(`${API_BASE}/reports/weekly?location=${locEnc}&lat=${lat || 12.960}&lng=${lng || 77.715}${r24}${r72}${prob}${elev}${temp}`);
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -621,6 +626,33 @@ export async function submitGroundTruthReport(reportData) {
     console.warn('Submit ground truth telemetry error:', err);
     return { status: 'offline', message: 'Logged locally on device' };
   }
+}
+
+export async function queryFloodAssistant({ prompt, telemetry, history, apiKey }) {
+  try {
+    const res = await fetch(`${API_BASE}/assistant/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        telemetry,
+        history,
+        apiKey
+      })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Backend assistant chat endpoint unreachable, using client hydro-engine fallback:', err);
+  }
+  
+  // Return structured response
+  return {
+    source: 'client_fallback',
+    model: 'FloodRisk HydroNet 2.0 (Client Offline)',
+    status: 'fallback'
+  };
 }
 
 

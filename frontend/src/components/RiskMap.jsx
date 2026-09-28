@@ -66,7 +66,7 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap, acti
   // Update Markers whenever stations change
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !stations || stations.length === 0) return;
+    if (!map || !Array.isArray(stations) || stations.length === 0) return;
 
     const markers = [];
 
@@ -110,16 +110,20 @@ export default function RiskMap({ stations, onSelectStation, onOpenMiraMap, acti
     });
 
     if (markers.length > 0) {
-      try {
-        const group = L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.12));
-      } catch (err) {}
+      if (activeLocation && activeLocation.lat && activeLocation.lng) {
+        map.setView([activeLocation.lat, activeLocation.lng], 11);
+      } else {
+        try {
+          const group = L.featureGroup(markers);
+          map.fitBounds(group.getBounds().pad(0.12));
+        } catch (err) {}
+      }
     }
 
     return () => {
       markers.forEach(m => m.remove());
     };
-  }, [stations, onSelectStation]);
+  }, [stations, onSelectStation, activeLocation]);
 
   return (
     <div className="card map-card" id="riskMapCard">

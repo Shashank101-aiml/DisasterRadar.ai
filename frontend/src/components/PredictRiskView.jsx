@@ -13,7 +13,8 @@ export default function PredictRiskView({
   params: initialParams,
   prediction: initialPrediction,
   onBackToDashboard,
-  onLocationChange
+  onLocationChange,
+  onOpenPerformance
 }) {
   // 1. Live Ground Telemetry for active physical location (preserved strictly from satellites & Copernicus DEM)
   const [liveParams, setLiveParams] = useState(initialParams || {
@@ -47,7 +48,9 @@ export default function PredictRiskView({
   const [compareError, setCompareError] = useState(null);
   const [gpsStatus, setGpsStatus] = useState(null);
   const [groundTruthState, setGroundTruthState] = useState({ verified: false, condition: null });
-  const [selectedEngine, setSelectedEngine] = useState('ensemble'); // 'ensemble' (93.8% Best) | 'random_forest' (90.2%) | 'xgboost' (81.0%)
+  // Production is locked to Super-Stack Ensemble (93.85% Acc, 0.982 ROC-AUC)
+  // Other models are available for benchmarking in Model Performance Studio
+  const selectedEngine = 'ensemble';
 
   // Active Parameters & Prediction based on current mode (Live vs Scenario)
   const displayParams = activeMode === 'scenario' && scenarioParams ? scenarioParams : liveParams;
@@ -316,15 +319,7 @@ export default function PredictRiskView({
     }
   };
 
-  // Switch ML model engine live and re-score currently active parameters
-  const handleSelectEngine = async (engineId) => {
-    setSelectedEngine(engineId);
-    if (activeMode === 'scenario' && scenarioParams) {
-      await handleRunScenarioPrediction(scenarioParams, engineId);
-    } else {
-      await handleRunLivePrediction(liveParams, null, engineId);
-    }
-  };
+  // Production is locked to Super-Stack Ensemble — engine selection not exposed
 
   // 1-Click Reset: Return from Simulation back to Real-World Ground Reality
   const handleResetToLive = () => {
@@ -646,75 +641,78 @@ export default function PredictRiskView({
         </div>
       </div>
 
-      {/* MODEL ARCHITECTURE SELECTOR BAR */}
+      {/* PRODUCTION MODEL BANNER — Ensemble locked as sole production engine */}
       <div style={{
-        background: '#0b1120',
-        border: '1px solid rgba(56, 189, 248, 0.22)',
+        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.10) 0%, rgba(12, 20, 40, 0.95) 100%)',
+        border: '1.5px solid rgba(168, 85, 247, 0.40)',
         borderRadius: '14px',
         padding: '14px 20px',
         marginBottom: '24px',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+        boxShadow: '0 8px 30px rgba(168, 85, 247, 0.12)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: '12px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '1.25rem' }}>🧠</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '38px', height: '38px',
+            background: 'rgba(168, 85, 247, 0.18)',
+            border: '1.5px solid rgba(168, 85, 247, 0.5)',
+            borderRadius: '10px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.15rem'
+          }}>🧠</div>
           <div>
-            <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Active Inference Architecture:
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+              <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#f8fafc' }}>Super-Stack Ensemble</span>
+              <span style={{
+                fontSize: '0.64rem', fontWeight: 800,
+                background: 'rgba(168, 85, 247, 0.22)',
+                color: '#c084fc',
+                border: '1px solid rgba(168, 85, 247, 0.45)',
+                borderRadius: '999px',
+                padding: '2px 8px',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase'
+              }}>★ Active Production Model</span>
             </div>
-            <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
-              Switch production ML engines live to benchmark sensitivity & decision boundaries
+            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Accuracy', val: '93.85%', color: '#c084fc' },
+                { label: 'Recall', val: '95.1%', color: '#34d399' },
+                { label: 'ROC-AUC', val: '0.982', color: '#38bdf8' },
+                { label: 'Latency', val: '5.8ms', color: '#94a3b8' }
+              ].map(s => (
+                <div key={s.label} style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  <span style={{ color: s.color, fontWeight: 800 }}>{s.val}</span>
+                  {' '}{s.label}
+                </div>
+              ))}
             </div>
           </div>
         </div>
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {[
-            { id: 'xgboost', name: 'XGBoost Fast', badge: '81.0% Acc · 1.8ms', color: '#38bdf8' },
-            { id: 'random_forest', name: 'Random Forest Bagging', badge: '90.2% Acc · 93.6% Recall', color: '#10b981' },
-            { id: 'ensemble', name: 'Super-Stack Ensemble', badge: '★ 93.85% Acc · 0.982 AUC', color: '#c084fc' }
-          ].map((m) => {
-            const isSel = selectedEngine === m.id;
-            return (
-              <button
-                key={m.id}
-                onClick={() => handleSelectEngine(m.id)}
-                disabled={isLoading}
-                style={{
-                  background: isSel ? 'rgba(56, 189, 248, 0.14)' : '#0f172a',
-                  border: isSel ? `1.5px solid ${m.color}` : '1px solid rgba(255, 255, 255, 0.08)',
-                  color: isSel ? '#f8fafc' : '#94a3b8',
-                  borderRadius: '10px',
-                  padding: '7px 14px',
-                  fontSize: '0.78rem',
-                  fontWeight: isSel ? 700 : 500,
-                  cursor: isLoading ? 'default' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: isSel ? `0 0 16px ${m.color}33` : 'none',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}
-              >
-                <span>{m.name}</span>
-                <span style={{
-                  fontSize: '0.66rem',
-                  fontWeight: 700,
-                  padding: '2px 7px',
-                  borderRadius: '999px',
-                  background: isSel ? `${m.color}28` : 'rgba(255, 255, 255, 0.06)',
-                  color: isSel ? m.color : '#94a3b8'
-                }}>
-                  {m.badge}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <button
+          onClick={() => onOpenPerformance && onOpenPerformance()}
+          style={{
+            background: 'rgba(168, 85, 247, 0.12)',
+            border: '1px solid rgba(168, 85, 247, 0.35)',
+            color: '#c084fc',
+            borderRadius: '8px',
+            padding: '7px 16px',
+            fontSize: '0.76rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s'
+          }}
+          title="View and benchmark all ML models in the Performance Studio"
+        >
+          📊 Benchmark All Models →
+        </button>
       </div>
 
       {/* TWO COLUMN WORKSTATION GRID */}
@@ -1083,7 +1081,7 @@ export default function PredictRiskView({
               <div style={{ background: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Active Model</div>
                 <div style={{ fontSize: '0.86rem', fontWeight: 800, color: selectedEngine === 'ensemble' ? '#c084fc' : (selectedEngine === 'random_forest' ? '#34d399' : '#38bdf8'), whiteSpace: 'nowrap' }}>
-                  {selectedEngine === 'ensemble' ? 'Ensemble 93.8%' : (selectedEngine === 'random_forest' ? 'Random Forest 90.2%' : 'XGBoost 81.0%')}
+                  {selectedEngine === 'ensemble' ? 'Super-Stack 93.9%' : (selectedEngine === 'random_forest' ? 'Random Forest 90.2%' : 'XGBoost 91.5%')}
                 </div>
               </div>
             </div>
@@ -1252,7 +1250,7 @@ export default function PredictRiskView({
               {isBreached ? '🚨 Emergency Directives for Municipal Authorities:' : '✅ Normal Operational Advisory:'}
             </div>
             <div style={{ fontSize: '0.8rem', color: '#e2e8f0', lineHeight: 1.4 }}>
-              {prediction?.recommendation || (isBreached 
+              {prediction?.recommendation || (isBreached
                 ? 'Issue immediate evacuation directives for ground floor residents in basin zones. Deploy high-capacity municipal de-watering pumps to storm sluices.'
                 : 'Environmental parameters safe. Continue routine hydrologic monitoring.'
               )}

@@ -178,3 +178,9 @@ class AuthTokenResponse(BaseModel):
     tokenType: str = "bearer"
     user: UserResponse
 
+class AssistantChatRequest(BaseModel):
+    prompt: str
+    telemetry: Optional[dict] = None
+    history: Optional[List[dict]] = None
+    apiKey: Optional[str] = None
+

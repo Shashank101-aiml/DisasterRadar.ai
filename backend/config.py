@@ -52,7 +52,11 @@ class Settings:
     # 5. Mapbox / GIS Tiles
     MAPBOX_ACCESS_TOKEN: str = os.getenv("MAPBOX_ACCESS_TOKEN", "")
 
-    # 6. Application Settings
+    # 6. Google Gemini AI Copilot
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+    # 7. Application Settings
     APP_ENV: str = os.getenv("APP_ENV", "development")
     APP_PORT: int = int(os.getenv("APP_PORT", 8000))
     APP_HOST: str = os.getenv("APP_HOST", "127.0.0.1")

@@ -109,7 +109,7 @@ export default function AlertsReportsView({
     Promise.all([
       fetchAlertScoring(payload),
       fetchRainfallImpact(payload),
-      fetchWeeklyReports(locName, locLat, locLng)
+      fetchWeeklyReports(locName, locLat, locLng, payload)
     ]).then(([score, impact, weekly]) => {
       if (score) setAlertScore(score);
       if (impact) setRainfallImpact(impact);
@@ -183,7 +183,7 @@ export default function AlertsReportsView({
       const [score, impact, weekly] = await Promise.all([
         fetchAlertScoring(payload),
         fetchRainfallImpact(payload),
-        fetchWeeklyReports(locItem.name, locItem.lat, locItem.lng)
+        fetchWeeklyReports(locItem.name, locItem.lat, locItem.lng, payload)
       ]);
 
       if (score) setAlertScore(score);
@@ -802,25 +802,6 @@ export default function AlertsReportsView({
         >
           📈 Rainfall Sensitivity Curves
         </button>
-
-        <button
-          onClick={() => setSubTab('precautions')}
-          style={{
-            background: 'none',
-            border: 'none',
-            borderBottom: subTab === 'precautions' ? '3px solid #0284c7' : '3px solid transparent',
-            color: subTab === 'precautions' ? '#38bdf8' : '#94a3b8',
-            fontWeight: 700,
-            fontSize: '0.92rem',
-            padding: '10px 16px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          🛡️ Safety Precautions & Directives
-        </button>
       </div>
 
       {/* REAL-TIME LAYER SYNCHRONIZATION SHIELD: DO NOT SHOW UNTIL EACH LAYER IS REAL TIME */}
@@ -1171,139 +1152,6 @@ export default function AlertsReportsView({
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: 🛡️ SAFETY PRECAUTIONS & DIRECTIVES */}
-      {subTab === 'precautions' && (
-        <div>
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
-              Actionable Safety Directives & Disaster Protocols for {locName}
-            </h3>
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
-              Specific civic guidelines and emergency preparations tailored to the current {curProb}% inundation risk level.
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-            {/* CITIZENS & HOUSEHOLDS */}
-            <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '18px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <span style={{ fontSize: '1.3rem' }}>🏠</span>
-                <strong style={{ fontSize: '0.94rem', color: '#f8fafc' }}>Households & Residents</strong>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Elevate Critical Valuables</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', padding: '2px 6px', borderRadius: '4px' }}>CRITICAL</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Move electrical equipment, vital paper documents, and medication to upper floors or tables above 1.0m height.
-                  </p>
-                </div>
-
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Ground Floor Sandbags</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid #f59e0b', padding: '2px 6px', borderRadius: '4px' }}>RECOMMENDED</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Erect temporary aluminum shields or sandbag barriers at doorway thresholds to repel street wash surges.
-                  </p>
-                </div>
-
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>72-Hour Survival Stock</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid #38bdf8', padding: '2px 6px', borderRadius: '4px' }}>SAFETY</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Keep 10 liters of bottled water, dry rations, fully charged power banks, torchlights, and essential prescription medications above 1.5m elevation.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* COMMUTERS & MOTORISTS */}
-            <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '18px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <span style={{ fontSize: '1.3rem' }}>🚗</span>
-                <strong style={{ fontSize: '0.94rem', color: '#f8fafc' }}>Motorists & Commuters</strong>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Never Cross Underpasses</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', padding: '2px 6px', borderRadius: '4px' }}>RULE #1</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Just 30cm (1 foot) of moving floodwater floats a standard sedan. If an underpass has water above curb height, immediately turn around.
-                  </p>
-                </div>
-
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Check Live Navigation</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid #38bdf8', padding: '2px 6px', borderRadius: '4px' }}>ADVISORY</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Use the 3D World Globe / Risk Map before driving to identify which local drainage channels are surcharging.
-                  </p>
-                </div>
-
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Vehicle Escape Hammer</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid #f59e0b', padding: '2px 6px', borderRadius: '4px' }}>EQUIPMENT</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Store a mechanical window glass-punch hammer in the center console in case electric window motors short-circuit underwater.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* MUNICIPAL & EMERGENCY RESPONDERS */}
-            <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '18px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <span style={{ fontSize: '1.3rem' }}>🚒</span>
-                <strong style={{ fontSize: '0.94rem', color: '#f8fafc' }}>First Responders & Municipal Teams</strong>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Deploy Dewatering Pumps</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', padding: '2px 6px', borderRadius: '4px' }}>URGENT</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Position diesel-powered 1000 GPM suction pumps at known chronic choking culverts and railway subway sumps in {locName}.
-                  </p>
-                </div>
-
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Low Tide Sluice Windows</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid #38bdf8', padding: '2px 6px', borderRadius: '4px' }}>STRATEGIC</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Open tidal discharge flap gates precisely during low tide to evacuate inland ponding by gravity before next tidal surge.
-                  </p>
-                </div>
-
-                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '0.84rem', color: '#f8fafc' }}>Electrical Feeder Shutoff</strong>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', padding: '2px 6px', borderRadius: '4px' }}>LIFE SAFETY</span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, lineHeight: 1.4 }}>
-                    Remotely de-energize roadside DP boxes and low-height transformers in inundated sectors of {locName} to avoid civic electrocution.
-                  </p>
-                </div>
               </div>
             </div>
           </div>

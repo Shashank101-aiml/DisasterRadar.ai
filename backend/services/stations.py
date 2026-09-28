@@ -82,10 +82,10 @@ def fetch_live_stations_from_open_meteo() -> List[StationData]:
 
                 # 100% Dynamic Machine Learning flood probability inference
                 try:
-                    from services.predictor import predict_flood_risk
+                    from services.ensemble_predictor import predict_flood_risk_ensemble
                     from models.schemas import PredictionInput
                     
-                    stn_pred = predict_flood_risk(PredictionInput(
+                    stn_pred = predict_flood_risk_ensemble(PredictionInput(
                         rainfall24h=r24,
                         rainfall72h=r72,
                         temperature=cur_temp,
