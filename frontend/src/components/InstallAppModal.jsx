@@ -32,18 +32,53 @@ export default function InstallAppModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  // Trigger 1-Click Native Install Prompt if supported by browser
+  // 1-Click Direct Standalone App Launcher Generator
+  const handleDownloadAppLauncher = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+    const content = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DisasterRadar.ai App Launcher</title>
+<meta http-equiv="refresh" content="0; url=${origin}/">
+<style>
+  body { background: #080c16; color: #38bdf8; font-family: system-ui, sans-serif; text-align: center; padding: 60px 20px; }
+  .btn { display: inline-block; background: #0284c7; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 20px; }
+</style>
+</head>
+<body>
+  <h2>Launching DisasterRadar.ai Platform...</h2>
+  <p>Connecting to flood risk intelligence server at: <strong>${origin}</strong></p>
+  <a class="btn" href="${origin}/">Open DisasterRadar Dashboard</a>
+  <script>window.location.href = "${origin}/";</script>
+</body>
+</html>`;
+    const element = document.createElement('a');
+    const file = new Blob([content], { type: 'text/html' });
+    element.href = URL.createObjectURL(file);
+    element.download = 'DisasterRadar-App.html';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    setInstallSuccess(true);
+  };
+
+  // Trigger 1-Click Native Install Prompt or Direct Standalone Download
   const handleTriggerNativeInstall = async () => {
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        setInstallSuccess(true);
+      try {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          setInstallSuccess(true);
+        }
+        setDeferredPrompt(null);
+      } catch (err) {
+        handleDownloadAppLauncher();
       }
-      setDeferredPrompt(null);
     } else {
-      // If browser doesn't have the deferred prompt ready, show relevant instructions
-      alert('Native install prompt not directly available in this tab. Follow the step-by-step installation instructions below!');
+      handleDownloadAppLauncher();
     }
   };
 
@@ -343,33 +378,60 @@ export default function InstallAppModal({ isOpen, onClose }) {
                 <span style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>{APK_VERSION_LABEL} · Built with Expo EAS</span>
               </div>
 
-              <a
-                href={APK_DOWNLOAD_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  background: '#ea580c',
-                  color: '#ffffff',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  fontSize: '0.86rem',
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                  marginBottom: '14px',
-                  boxShadow: '0 2px 10px rgba(234, 88, 12, 0.35)'
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                <span>Download DisasterRadar.apk</span>
-              </a>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                <a
+                  href="http://localhost:8000/api/download/apk"
+                  download="DisasterRadar.apk"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    background: '#ea580c',
+                    color: '#ffffff',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    textDecoration: 'none',
+                    boxShadow: '0 2px 10px rgba(234, 88, 12, 0.35)',
+                    textAlign: 'center'
+                  }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>Download APK</span>
+                </a>
+
+                <button
+                  onClick={handleDownloadAppLauncher}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    background: '#0284c7',
+                    border: 'none',
+                    color: '#ffffff',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 10px rgba(2, 132, 199, 0.35)'
+                  }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="8 17 12 21 16 17"/>
+                    <line x1="12" y1="12" x2="12" y2="21"/>
+                    <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>
+                  </svg>
+                  <span>Standalone App</span>
+                </button>
+              </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.76rem' }}>
                 <div style={{ display: 'flex', gap: '10px', background: '#0f172a', padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>

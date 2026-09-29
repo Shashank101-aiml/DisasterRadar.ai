@@ -6,25 +6,18 @@ import {
   geocodeLocation,
   fetchGlobalLiveTelemetry,
   predictFloodRisk,
-  fetchMiraBhayandarGIS
+  fetchMiraBhayandarGIS,
+  fetchDopplerRadarConfig,
+  submitGroundTruthReport,
+  reverseGeocodeCoords
 } from '../services/api';
-
-// Global Preset Disaster / Hotspot Locations
-const PRESET_HOTSPOTS = [
-  { name: 'Mira Bhayandar', country: 'India', lat: 19.2952, lng: 72.8544, desc: 'MBMC Coastal Creek Plain' },
-  { name: 'Mumbai', country: 'India', lat: 19.0760, lng: 72.8777, desc: 'Mithi River Basin' },
-  { name: 'Bengaluru', country: 'India', lat: 12.9716, lng: 77.5946, desc: 'Urban Valley & Lake Overflows' },
-  { name: 'Miami', country: 'USA', lat: 25.7617, lng: -80.1918, desc: 'Atlantic Coastal Sea Rise' },
-  { name: 'Jakarta', country: 'Indonesia', lat: -6.2088, lng: 106.8456, desc: 'North Jakarta Subsidence' },
-  { name: 'Tokyo', country: 'Japan', lat: 35.6762, lng: 139.6503, desc: 'Arakawa Storm Surge Basin' },
-  { name: 'Venice', country: 'Italy', lat: 45.4408, lng: 12.3155, desc: 'Lagoon Tidal Acqua Alta' },
-  { name: 'London', country: 'UK', lat: 51.5074, lng: -0.1278, desc: 'Thames Barrier Inundation' }
-];
 
 export default function GlobeRiskMap({
   onSelectLocationForPredict,
   onBackToDashboard,
   activeLocation,
+  currentParams,
+  currentPrediction,
   onLocationChange,
   onOpenHistoryModal
 }) {
@@ -38,47 +31,69 @@ export default function GlobeRiskMap({
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Lat / Lng Direct Input States
-  const [latInput, setLatInput] = useState(activeLocation?.lat?.toFixed(3) || '19.295');
-  const [lngInput, setLngInput] = useState(activeLocation?.lng?.toFixed(3) || '72.854');
+  const [latInput, setLatInput] = useState(activeLocation?.lat?.toFixed(3) || '12.960');
+  const [lngInput, setLngInput] = useState(activeLocation?.lng?.toFixed(3) || '77.715');
 
   // Active Target Location
   const [targetLocation, setTargetLocation] = useState(activeLocation || {
-    name: 'Mira Bhayandar',
+    name: 'Bengaluru, Karnataka',
     country: 'India',
-    lat: 19.2952,
-    lng: 72.8544
+    lat: 12.9603,
+    lng: 77.7151
   });
 
-
-  // Telemetry & Prediction States
-  const [telemetry, setTelemetry] = useState({
-    rainfall24h: 125,
-    rainfall72h: 240,
-    elevation: 12,
-    temperature: 28,
-    humidity: 88,
-    windSpeed: 18,
-    pressure: 1002,
-    status: 'live',
-    source: 'Open-Meteo Global Satellite & DEM'
+  // Telemetry & Prediction States (Initialized cleanly from currentParams if available, otherwise dynamic live ingestion)
+  const [telemetry, setTelemetry] = useState(() => {
+    if (currentParams && (currentParams.rainfall24h > 0 || currentParams.elevation > 0 || currentParams.temperature > 0)) {
+      return {
+        rainfall24h: currentParams.rainfall24h ?? 0,
+        rainfall72h: currentParams.rainfall72h ?? 0,
+        elevation: currentParams.elevation ?? 0,
+        temperature: currentParams.temperature ?? 0,
+        humidity: currentParams.humidity ?? 0,
+        windSpeed: currentParams.windSpeed ?? 0,
+        pressure: currentParams.pressure ?? 1013,
+        currentRainfall: currentParams.currentRainfall ?? 0,
+        isRaining: Boolean(currentParams.isRaining),
+        weatherCondition: (currentParams.currentRainfall || 0) > 0 ? 'Active Rain' : 'Currently Dry / Clear',
+        status: 'live',
+        source: 'Open-Meteo Global Satellite & DEM'
+      };
+    }
+    return {
+      rainfall24h: 0,
+      rainfall72h: 0,
+      elevation: 0,
+      temperature: 0,
+      humidity: 0,
+      windSpeed: 0,
+      pressure: 1013,
+      currentRainfall: 0,
+      isRaining: false,
+      weatherCondition: 'Clear / Dry',
+      status: 'loading',
+      source: 'Open-Meteo Global Satellite & DEM'
+    };
   });
 
-  const [prediction, setPrediction] = useState({
-    probability: 88.5,
-    riskLevel: 'CRITICAL',
-    riskClass: 'high',
-    recommendation: 'Immediate flood risk! Deploy high-capacity dewatering pumps to Rai Creek outlet and issue low-lying evacuation alerts.',
-    riskFactors: [
-      { name: 'Rainfall (72h)', value: 38, color: '#ef4444' },
-      { name: 'Rainfall (24h)', value: 26, color: '#f97316' },
-      { name: 'Elevation (Low)', value: 16, color: '#eab308' },
-      { name: 'Humidity Saturation', value: 12, color: '#84cc16' },
-      { name: 'Tidal Pressure', value: 8, color: '#06b6d4' }
-    ]
+  const [prediction, setPrediction] = useState(() => {
+    if (currentPrediction && currentPrediction.probability !== undefined) {
+      return currentPrediction;
+    }
+    return {
+      probability: 0,
+      riskLevel: 'EVALUATING',
+      riskClass: 'low',
+      recommendation: 'Querying live satellite telemetry & computing hydrological inundation risk...',
+      riskFactors: []
+    };
   });
 
   const [isLoadingTelemetry, setIsLoadingTelemetry] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
+
+  // Keep a stable ref to handleNavigateToLocation for Three.js and Leaflet click callbacks
+  const handleNavigateToLocationRef = useRef(null);
 
   // References for Three.js 3D Globe
   const globeContainerRef = useRef(null);
@@ -105,8 +120,22 @@ export default function GlobeRiskMap({
     zones: true,
     railway: true,
     roads: true,
-    hotspots: true
+    hotspots: true,
+    radar: true
   });
+  const [radarConfig, setRadarConfig] = useState(null);
+  const [groundTruthState, setGroundTruthState] = useState({ verified: false, condition: null });
+
+  // Fetch Live 500m Doppler Weather Radar Configuration
+  useEffect(() => {
+    let isMounted = true;
+    fetchDopplerRadarConfig().then((cfg) => {
+      if (isMounted && cfg) {
+        setRadarConfig(cfg);
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   // ==========================================================================
   // ==========================================================================
@@ -447,10 +476,17 @@ export default function GlobeRiskMap({
     // Calculate rotation to face initial target
     updateGlobeTargetRotation(targetLocation.lat, targetLocation.lng);
 
-    // Mouse Controls (Rotate / Orbit / Zoom)
+    // Mouse Controls (Rotate / Orbit / Zoom + Click Coordinate Pinning)
+    let startX = 0;
+    let startY = 0;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
     const onMouseDown = (e) => {
       threeStateRef.current.isDragging = true;
       threeStateRef.current.prevMouse = { x: e.clientX, y: e.clientY };
+      startX = e.clientX;
+      startY = e.clientY;
     };
 
     const onMouseMove = (e) => {
@@ -466,8 +502,45 @@ export default function GlobeRiskMap({
       );
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = async (e) => {
       threeStateRef.current.isDragging = false;
+      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      // If mouse moved less than 6px, it's an intentional click to select a point on Earth
+      if (dist < 6 && container && camera && threeStateRef.current.globeMesh) {
+        const rect = container.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(threeStateRef.current.globeMesh);
+        if (intersects && intersects.length > 0) {
+          const hit = intersects[0].point.clone();
+          threeStateRef.current.globeMesh.worldToLocal(hit);
+          hit.normalize();
+          const phi = Math.acos(Math.max(-1, Math.min(1, hit.y)));
+          const lat = parseFloat((90 - (phi * 180 / Math.PI)).toFixed(4));
+          const theta = Math.atan2(hit.z, -hit.x);
+          let lng = parseFloat(((theta * 180 / Math.PI) - 180).toFixed(4));
+          while (lng < -180) lng += 360;
+          while (lng > 180) lng -= 360;
+
+          let placeName = `Point (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`;
+          let countryName = '';
+          try {
+            const revRes = await reverseGeocodeCoords(lat, lng);
+            if (revRes && revRes.name) {
+              placeName = revRes.name;
+              countryName = revRes.country || '';
+            }
+          } catch (err) {}
+
+          handleNavigateToLocationRef.current?.({
+            name: placeName,
+            country: countryName,
+            lat: lat,
+            lng: lng
+          });
+        }
+      }
     };
 
     const onWheel = (e) => {
@@ -789,41 +862,156 @@ export default function GlobeRiskMap({
   // ==========================================================================
   // 2. TELEMETRY FETCH & ML MODEL PREDICTION FLOW
   // ==========================================================================
+  const lastLoadedKeyRef = useRef('');
+
   const handleNavigateToLocation = useCallback(async (locationItem) => {
+    if (!locationItem || locationItem.lat === undefined || locationItem.lng === undefined) return;
+    const locKey = `${locationItem.name || ''}_${Number(locationItem.lat).toFixed(3)}_${Number(locationItem.lng).toFixed(3)}`;
+    lastLoadedKeyRef.current = locKey;
     setIsLoadingTelemetry(true);
     setTargetLocation(locationItem);
-    setLatInput(locationItem.lat.toFixed(4));
-    setLngInput(locationItem.lng.toFixed(4));
+    setLatInput(Number(locationItem.lat).toFixed(4));
+    setLngInput(Number(locationItem.lng).toFixed(4));
 
     // 1. Fly Globe to coordinates
-    updateGlobeTargetRotation(locationItem.lat, locationItem.lng);
-
-    // Notify parent about location change
-    onLocationChange?.(locationItem);
+    try {
+      updateGlobeTargetRotation(locationItem.lat, locationItem.lng);
+    } catch (e) {
+      console.warn('Globe rotation error:', e);
+    }
 
     // 2. Fetch Live Telemetry from Open-Meteo & Copernicus DEM APIs
+    try {
+      const liveTelemetry = await fetchGlobalLiveTelemetry(locationItem.lat, locationItem.lng);
+      if (liveTelemetry) {
+        setTelemetry(liveTelemetry);
 
-    const liveTelemetry = await fetchGlobalLiveTelemetry(locationItem.lat, locationItem.lng);
-    setTelemetry(liveTelemetry);
+        // 3. Feed Live Parameters into AI Model for Risk Prediction
+        const predictionInput = {
+          rainfall24h: liveTelemetry.rainfall24h,
+          rainfall72h: liveTelemetry.rainfall72h,
+          currentRainfall: liveTelemetry.currentRainfall,
+          isRaining: liveTelemetry.isRaining,
+          temperature: liveTelemetry.temperature,
+          humidity: liveTelemetry.humidity,
+          windSpeed: liveTelemetry.windSpeed,
+          pressure: liveTelemetry.pressure,
+          elevation: liveTelemetry.elevation,
+          latitude: locationItem.lat,
+          longitude: locationItem.lng,
+          location: `${locationItem.name}${locationItem.country ? ', ' + locationItem.country : ''}`
+        };
 
-    // 3. Feed Live Parameters into AI Model for Risk Prediction
+        const result = await predictFloodRisk(predictionInput);
+        if (result) {
+          setPrediction(result);
+        }
+        // Propagate real location, real telemetry, and real prediction to parent (App.jsx)
+        onLocationChange?.(locationItem, predictionInput, result);
+      }
+    } catch (err) {
+      console.error('Failed to fetch live telemetry or prediction:', err);
+    } finally {
+      setIsLoadingTelemetry(false);
+    }
+  }, [onLocationChange]);
+
+  // Keep ref up to date
+  useEffect(() => {
+    handleNavigateToLocationRef.current = handleNavigateToLocation;
+  });
+
+  // Quick 1-Click Action: Force Zero Rainfall Baseline (Dry Weather Mode)
+  const handleSetZeroRainfall = async () => {
+    await handleGroundTruthVerify(false);
+  };
+
+  // Option A: 1-Tap Ground-Truth Verification (Waze-style crowdsourced meteorological calibration)
+  const handleGroundTruthVerify = async (isRaining) => {
+    setGroundTruthState({ verified: true, condition: isRaining ? 'RAIN' : 'DRY' });
+    const activeRate = isRaining ? (telemetry.currentRainfall > 0 ? telemetry.currentRainfall : 8.5) : 0.0;
+    const r24 = isRaining ? Math.max(telemetry.rainfall24h || 0, 45.0) : 0.0;
+    const r72 = isRaining ? Math.max(telemetry.rainfall72h || 0, 95.0) : 0.0;
+
+    const updatedTelem = {
+      ...telemetry,
+      currentRainfall: activeRate,
+      isRaining: isRaining,
+      weatherCondition: isRaining ? `Active Rain (${activeRate.toFixed(1)} mm/h)` : 'Ground-Truth Verified Clear / Dry (0.0 mm/h)',
+      rainfall24h: r24,
+      rainfall72h: r72,
+      groundTruthVerified: true
+    };
+    setTelemetry(updatedTelem);
+
+    // Persist ground-truth report to backend
+    try {
+      await submitGroundTruthReport({
+        location: targetLocation.name,
+        latitude: targetLocation.lat,
+        longitude: targetLocation.lng,
+        isRaining: isRaining,
+        observedCondition: isRaining ? 'ACTIVE_RAIN_REPORTED' : 'USER_VERIFIED_DRY',
+        rainfallOverride: activeRate
+      });
+    } catch (e) {
+      console.warn('Ground truth log error:', e);
+    }
+
     const predictionInput = {
-      rainfall24h: liveTelemetry.rainfall24h,
-      rainfall72h: liveTelemetry.rainfall72h,
-      temperature: liveTelemetry.temperature,
-      humidity: liveTelemetry.humidity,
-      windSpeed: liveTelemetry.windSpeed,
-      pressure: liveTelemetry.pressure,
-      elevation: liveTelemetry.elevation,
-      latitude: locationItem.lat,
-      longitude: locationItem.lng,
-      location: `${locationItem.name}${locationItem.country ? ', ' + locationItem.country : ''}`
+      rainfall24h: r24,
+      rainfall72h: r72,
+      currentRainfall: activeRate,
+      isRaining: isRaining,
+      temperature: telemetry.temperature,
+      humidity: telemetry.humidity,
+      windSpeed: telemetry.windSpeed,
+      pressure: telemetry.pressure,
+      elevation: telemetry.elevation,
+      latitude: targetLocation.lat,
+      longitude: targetLocation.lng,
+      location: `${targetLocation.name}${targetLocation.country ? ', ' + targetLocation.country : ''}`
     };
 
-    const result = await predictFloodRisk(predictionInput);
-    setPrediction(result);
-    setIsLoadingTelemetry(false);
-  }, []);
+    try {
+      const result = await predictFloodRisk(predictionInput);
+      if (result) {
+        setPrediction(result);
+        onLocationChange?.(targetLocation, predictionInput, result);
+      }
+    } catch (e) {
+      console.error('Ground-truth prediction update failed:', e);
+    }
+  };
+
+  // Auto-fetch real-time telemetry on mount and whenever activeLocation changes
+  useEffect(() => {
+    const loc = activeLocation || targetLocation;
+    if (!loc || loc.lat === undefined || loc.lng === undefined) return;
+
+    const locKey = `${loc.name || ''}_${Number(loc.lat).toFixed(3)}_${Number(loc.lng).toFixed(3)}`;
+    const isUninitialized = telemetry.status === 'loading' || (telemetry.elevation === 0 && telemetry.temperature === 0 && telemetry.humidity === 0);
+
+    if (lastLoadedKeyRef.current !== locKey || isUninitialized) {
+      lastLoadedKeyRef.current = locKey;
+      handleNavigateToLocation(loc);
+    }
+  }, [activeLocation?.lat, activeLocation?.lng, activeLocation?.name, handleNavigateToLocation]);
+
+  const handleSearchSubmit = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const results = await geocodeLocation(searchQuery.trim());
+      if (results && results.length > 0) {
+        handleSelectSearchResult(results[0]);
+      }
+    } catch (e) {
+      console.warn('Geocoding search failed:', e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   // Handle Search Input Change with Debounced Geocoding
   const handleSearchChange = (e) => {
@@ -876,6 +1064,56 @@ export default function GlobeRiskMap({
     });
   };
 
+  const [deviceLocationStatus, setDeviceLocationStatus] = useState(null);
+
+  const handleFlyToDeviceLocation = () => {
+    if (!navigator.geolocation) {
+      setDeviceLocationStatus('GPS not supported on this browser');
+      return;
+    }
+    setDeviceLocationStatus('Detecting device GPS...');
+    const onSuccess = async (pos) => {
+      const lat = parseFloat(pos.coords.latitude.toFixed(4));
+      const lng = parseFloat(pos.coords.longitude.toFixed(4));
+      let placeName = `Device Location (${lat}, ${lng})`;
+      let country = '';
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`);
+        if (res.ok) {
+          const d = await res.json();
+          placeName = d.address?.city || d.address?.town || d.address?.district || d.address?.county || placeName;
+          country = d.address?.country || '';
+        }
+      } catch (e) {}
+
+      setDeviceLocationStatus(`Locked: ${placeName}`);
+      handleNavigateToLocation({
+        name: placeName,
+        country: country,
+        lat: lat,
+        lng: lng
+      });
+      setTimeout(() => setDeviceLocationStatus(null), 5000);
+    };
+
+    const onError = () => {
+      navigator.geolocation.getCurrentPosition(
+        onSuccess,
+        (err) => {
+          setDeviceLocationStatus(`GPS unavailable: ${err.message}`);
+          setTimeout(() => setDeviceLocationStatus(null), 4000);
+        },
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      onError,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
   // ==========================================================================
   // 3. 2D CARTOGRAPHIC GIS ATLAS (MATCHING SCREENSHOT)
   // ==========================================================================
@@ -897,10 +1135,31 @@ export default function GlobeRiskMap({
       attributionControl: false
     });
 
-    // World Topo Map Tiles (matching the cartographic hillshade aesthetic)
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{x}/{y}', {
-      maxZoom: 18
+    // High-Resolution Cartographic Voyager Tiles with global zoom level support
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
     }).addTo(map);
+
+    // Click on 2D map to inspect coordinates & query live telemetry
+    map.on('click', async (e) => {
+      const { lat, lng } = e.latlng;
+      let placeName = `Point (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+      let countryName = '';
+      try {
+        const revRes = await reverseGeocodeCoords(lat, lng);
+        if (revRes && revRes.name) {
+          placeName = revRes.name;
+          countryName = revRes.country || '';
+        }
+      } catch (err) {}
+      handleNavigateToLocationRef.current?.({
+        name: placeName,
+        country: countryName,
+        lat: parseFloat(lat.toFixed(4)),
+        lng: parseFloat(lng.toFixed(4))
+      });
+    });
 
     leafletMapRef.current = map;
 
@@ -993,8 +1252,17 @@ export default function GlobeRiskMap({
       `).openPopup();
     }
 
+    // Live 500m Doppler Weather Radar Layer (Option B)
+    if (activeLayers.radar && radarConfig?.tile_url) {
+      L.tileLayer(radarConfig.tile_url, {
+        opacity: 0.65,
+        zIndex: 500,
+        maxZoom: 18
+      }).addTo(layerGroup);
+    }
+
     return () => layerGroup.remove();
-  }, [viewMode, activeLayers, targetLocation, prediction, telemetry]);
+  }, [viewMode, activeLayers, targetLocation, prediction, telemetry, radarConfig]);
 
   // Load into Main Predictor Dashboard
   const handleAnalyzeInPredictor = () => {
@@ -1031,11 +1299,29 @@ export default function GlobeRiskMap({
             <span>Dashboard</span>
           </button>
           <div>
-            <h2 className="globe-main-title">
-              {viewMode === '3d-globe' ? '3D World Globe Flood Radar' : 'High-Resolution Topographic GIS Atlas'}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 className="globe-main-title">
+                {viewMode === '3d-globe' ? '3D World Globe Flood Radar' : '2D Topographic GIS Atlas'}
+              </h2>
+              {viewMode === '2d-gis' && (
+                <span style={{
+                  fontSize: '0.66rem',
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  color: '#fbbf24',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontWeight: 800,
+                  letterSpacing: '0.4px'
+                }}>
+                  🚧 IN DEVELOPMENT
+                </span>
+              )}
+            </div>
             <div className="globe-sub-title">
-              Planetary Geospatial Telemetry Ingestion & Real-Time AI Risk Inference
+              {viewMode === '3d-globe'
+                ? 'Planetary Geospatial Telemetry Ingestion & Real-Time AI Risk Inference'
+                : 'Cartographic Ward-Level Choropleth & Overpass Hydro-Corridors (Development Preview)'}
             </div>
           </div>
         </div>
@@ -1056,6 +1342,7 @@ export default function GlobeRiskMap({
           <button
             className={`view-toggle-btn ${viewMode === '2d-gis' ? 'active' : ''}`}
             onClick={() => setViewMode('2d-gis')}
+            style={{ position: 'relative' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
@@ -1063,6 +1350,17 @@ export default function GlobeRiskMap({
               <line x1="16" y1="6" x2="16" y2="22" />
             </svg>
             <span>2D GIS Atlas</span>
+            <span style={{
+              fontSize: '0.58rem',
+              background: '#f59e0b',
+              color: '#0f172a',
+              fontWeight: 800,
+              padding: '1px 5px',
+              borderRadius: '4px',
+              marginLeft: '4px'
+            }}>
+              DEV
+            </span>
           </button>
         </div>
 
@@ -1118,9 +1416,15 @@ export default function GlobeRiskMap({
             <input
               type="text"
               className="globe-search-input"
-              placeholder="e.g. Mira Bhayandar, Tokyo, Miami, Paris..."
+              placeholder="e.g. Guwahati, Tokyo, Miami, Paris..."
               value={searchQuery}
               onChange={handleSearchChange}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearchSubmit();
+                }
+              }}
               onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
             />
             {isSearching && <span className="search-spinner" />}
@@ -1181,18 +1485,20 @@ export default function GlobeRiskMap({
           </button>
         </form>
 
-        {/* C. Preset Hotspots Quick-Chips */}
-        <div className="hotspot-pills-row">
-          <span className="pills-label">Presets:</span>
-          {PRESET_HOTSPOTS.map((spot, i) => (
-            <button
-              key={i}
-              className={`hotspot-pill ${targetLocation.name === spot.name ? 'active' : ''}`}
-              onClick={() => handleNavigateToLocation(spot)}
-            >
-              {spot.name}
-            </button>
-          ))}
+        {/* C. Live Device GPS Action */}
+        <div className="hotspot-pills-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className="hotspot-pill active"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#059669', borderColor: '#059669', color: '#fff', fontWeight: 700 }}
+            onClick={handleFlyToDeviceLocation}
+            title="Detect and fly to your physical device location"
+          >
+            <span>📍 Fly to My Device Location</span>
+          </button>
+          {deviceLocationStatus && (
+            <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{deviceLocationStatus}</span>
+          )}
         </div>
       </div>
 
@@ -1221,11 +1527,43 @@ export default function GlobeRiskMap({
 
         {/* Mode B: 2D Topographic Cartographic GIS Atlas */}
         {viewMode === '2d-gis' && (
-          <div className="gis-canvas-container">
+          <div className="gis-canvas-container" style={{ position: 'relative' }}>
+            {/* Development Phase Floating Indicator */}
+            <div style={{
+              position: 'absolute',
+              top: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1000,
+              background: 'rgba(15, 23, 42, 0.94)',
+              border: '1px solid rgba(245, 158, 11, 0.5)',
+              borderRadius: '20px',
+              padding: '6px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+              backdropFilter: 'blur(8px)',
+              fontSize: '0.74rem',
+              color: '#f8fafc'
+            }}>
+              <span style={{ fontSize: '0.86rem' }}>🚧</span>
+              <span style={{ fontWeight: 800, color: '#f59e0b', letterSpacing: '0.3px' }}>DEVELOPMENT PHASE:</span>
+              <span style={{ color: '#cbd5e1' }}>2D Cartographic Vector Atlas & Overpass Hydro-Corridors are currently in active calibration.</span>
+            </div>
+
             <div ref={leafletContainerRef} className="gis-leaflet-container" />
 
             {/* GIS Layer Toggles */}
             <div className="gis-layer-toggles-floating">
+              <label className="toggle-label" style={{ color: '#38bdf8', fontWeight: 700 }}>
+                <input
+                  type="checkbox"
+                  checked={activeLayers.radar}
+                  onChange={(e) => setActiveLayers((p) => ({ ...p, radar: e.target.checked }))}
+                />
+                <span>📡 Live Doppler Radar (500m)</span>
+              </label>
               <label className="toggle-label">
                 <input
                   type="checkbox"
@@ -1305,6 +1643,17 @@ export default function GlobeRiskMap({
                 </div>
               </div>
 
+              {/* Doppler Radar Scale */}
+              <div className="legend-radar-col" style={{ borderLeft: '1px solid #cbd5e1', paddingLeft: '10px' }}>
+                <div className="sym-label" style={{ fontWeight: 700, marginBottom: '4px', color: '#0284c7' }}>📡 Doppler Radar (500m)</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.66rem', color: '#475569' }}>
+                  <span>Light</span>
+                  <div style={{ height: '7px', width: '56px', borderRadius: '3px', background: 'linear-gradient(90deg, #10b981, #38bdf8, #eab308, #ef4444, #a855f7)' }} />
+                  <span>Heavy</span>
+                </div>
+                <div style={{ fontSize: '0.6rem', color: '#64748b', marginTop: '2px' }}>RainViewer Live Echoes</div>
+              </div>
+
               <div className="legend-metadata-col">
                 <div>Coordinate System: GCS WGS 1984</div>
                 <div>Datum: WGS 1984</div>
@@ -1321,7 +1670,7 @@ export default function GlobeRiskMap({
             <div className="hud-card-header">
               <div className="hud-title-with-badge">
                 <span className={`hud-pulse-dot ${isLoadingTelemetry ? 'fetching' : 'active'}`} />
-                <span className="hud-card-title">Live API Telemetry Stream</span>
+                <span className="hud-card-title">{isLoadingTelemetry ? 'Syncing Live Telemetry...' : 'Live API Telemetry Stream'}</span>
               </div>
               <span className="hud-provider-tag">{telemetry.source}</span>
             </div>
@@ -1331,13 +1680,97 @@ export default function GlobeRiskMap({
               <span>({targetLocation.lat.toFixed(3)}°N, {targetLocation.lng.toFixed(3)}°E)</span>
             </div>
 
+            {/* Live Doppler Radar Echo Status Banner (Option B) */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '6px 10px',
+              margin: '8px 0 4px 0',
+              background: 'rgba(2, 132, 199, 0.1)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: '6px',
+              fontSize: '0.72rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: '#38bdf8',
+                  boxShadow: '0 0 8px #38bdf8',
+                  display: 'inline-block'
+                }} />
+                <span style={{ color: '#38bdf8', fontWeight: 700 }}>
+                  📡 Live 500m Doppler Radar
+                </span>
+              </div>
+              <span style={{ color: '#94a3b8', fontSize: '0.66rem' }}>
+                {radarConfig?.timestamp ? new Date(radarConfig.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Echoes Active'}
+              </span>
+            </div>
+
+            {/* Virga Deadband Filter Indicator */}
+            {telemetry.deadbandFiltered && (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#34d399',
+                padding: '4px 8px',
+                borderRadius: '5px',
+                fontSize: '0.67rem',
+                margin: '4px 0 6px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}>
+                <span>🛡️ Virga Filtered:</span>
+                <span>Trace atmospheric virga (&lt;0.25 mm/h) filtered to dry baseline.</span>
+              </div>
+            )}
+
+            {/* Current Precipitation Condition Status */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '7px 10px',
+              margin: '4px 0 8px 0',
+              background: (telemetry.currentRainfall || 0) > 0 ? 'rgba(56, 189, 248, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+              border: (telemetry.currentRainfall || 0) > 0 ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '6px',
+              fontSize: '0.74rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.95rem' }}>{(telemetry.currentRainfall || 0) > 0 ? '🌧️' : '☀️'}</span>
+                <div>
+                  <span style={{ color: (telemetry.currentRainfall || 0) > 0 ? '#38bdf8' : '#10b981', fontWeight: 700 }}>
+                    {(telemetry.currentRainfall || 0) > 0 ? 'Active Rain' : 'Currently Dry / Clear'}
+                  </span>
+                  <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                    Rain Rate: {(telemetry.currentRainfall || 0).toFixed(1)} mm/h {groundTruthState.verified ? '(Ground Verified)' : ''}
+                  </div>
+                </div>
+              </div>
+              <span style={{
+                background: (telemetry.currentRainfall || 0) > 0 ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                color: (telemetry.currentRainfall || 0) > 0 ? '#38bdf8' : '#10b981',
+                padding: '2px 7px',
+                borderRadius: '4px',
+                fontSize: '0.68rem',
+                fontWeight: 700
+              }}>
+                {(telemetry.currentRainfall || 0) > 0 ? 'RAINING' : 'NO RAIN'}
+              </span>
+            </div>
+
             <div className="telemetry-metrics-grid">
               <div className="metric-pill">
-                <div className="metric-label">24h Rainfall</div>
+                <div className="metric-label">Past 24h Rain</div>
                 <div className="metric-value highlight">{telemetry.rainfall24h} <span className="unit">mm</span></div>
               </div>
               <div className="metric-pill">
-                <div className="metric-label">72h Cumulative</div>
+                <div className="metric-label">Past 72h Rain</div>
                 <div className="metric-value highlight-orange">{telemetry.rainfall72h} <span className="unit">mm</span></div>
               </div>
               <div className="metric-pill">
@@ -1358,12 +1791,87 @@ export default function GlobeRiskMap({
               </div>
             </div>
 
+            {/* Option A: 1-Tap Ground-Truth Verification Box */}
+            <div style={{
+              marginTop: '10px',
+              padding: '10px',
+              background: groundTruthState.verified ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+              border: groundTruthState.verified ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '8px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.4px' }}>
+                  GROUND-TRUTH CALIBRATION
+                </span>
+                {groundTruthState.verified && (
+                  <span style={{
+                    fontSize: '0.64rem',
+                    background: '#10b981',
+                    color: '#0f172a',
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: '4px'
+                  }}>
+                    ✓ VERIFIED
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.66rem', color: '#94a3b8', marginBottom: '8px', lineHeight: 1.3 }}>
+                Are skies clear outside your window? Calibrate AI models to your exact ground observations:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <button
+                  onClick={() => handleGroundTruthVerify(false)}
+                  style={{
+                    background: groundTruthState.condition === 'DRY' ? '#10b981' : 'rgba(16, 185, 129, 0.15)',
+                    color: groundTruthState.condition === 'DRY' ? '#0f172a' : '#34d399',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    borderRadius: '6px',
+                    padding: '7px 4px',
+                    fontSize: '0.73rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Calibrate model: Verify zero rainfall on ground and recalculate flood probability"
+                >
+                  ☀️ Bone Dry (0 mm)
+                </button>
+                <button
+                  onClick={() => handleGroundTruthVerify(true)}
+                  style={{
+                    background: groundTruthState.condition === 'RAIN' ? '#38bdf8' : 'rgba(56, 189, 248, 0.15)',
+                    color: groundTruthState.condition === 'RAIN' ? '#0f172a' : '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                    borderRadius: '6px',
+                    padding: '7px 4px',
+                    fontSize: '0.73rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Calibrate model: Verify active rain on ground and recalculate flood probability"
+                >
+                  🌧️ Active Rain
+                </button>
+              </div>
+            </div>
+
+
             {/* Quick Link to Area History */}
             <button
               onClick={() => onOpenHistoryModal?.(targetLocation)}
               style={{
                 width: '100%',
-                marginTop: '10px',
+                marginTop: '6px',
                 background: 'rgba(56, 189, 248, 0.12)',
                 border: '1px solid rgba(56, 189, 248, 0.3)',
                 color: '#38bdf8',

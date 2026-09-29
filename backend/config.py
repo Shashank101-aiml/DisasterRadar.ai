@@ -52,7 +52,11 @@ class Settings:
     # 5. Mapbox / GIS Tiles
     MAPBOX_ACCESS_TOKEN: str = os.getenv("MAPBOX_ACCESS_TOKEN", "")
 
-    # 6. Application Settings
+    # 6. Google Gemini AI Copilot
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+    # 7. Application Settings
     APP_ENV: str = os.getenv("APP_ENV", "development")
     APP_PORT: int = int(os.getenv("APP_PORT", 8000))
     APP_HOST: str = os.getenv("APP_HOST", "127.0.0.1")
@@ -71,29 +75,15 @@ class Settings:
     DECISION_THRESHOLD: float = float(os.getenv("DECISION_THRESHOLD", 0.55))
 
     def get_api_status(self) -> dict:
-        """Returns connection readiness status for all external geospatial providers."""
-        return {
-            "open_meteo": {
-                "active": True,  # Free without key
-                "has_custom_key": bool(self.OPEN_METEO_API_KEY),
-                "type": "weather_precipitation"
-            },
-            "copernicus_sentinel_hub": {
-                "configured": bool(self.COPERNICUS_CLIENT_ID and self.COPERNICUS_CLIENT_SECRET),
-                "type": "dem_elevation_spectral_indices"
-            },
-            "google_earth_engine": {
-                "configured": bool(self.GEE_PROJECT_ID and (self.GEE_SERVICE_ACCOUNT_EMAIL or self.GEE_SERVICE_ACCOUNT_JSON)),
-                "type": "dynamic_world_urbanization"
-            },
-            "openstreetmap": {
-                "active": True,
-                "type": "infrastructure_drainage_proxies"
-            },
-            "mapbox": {
-                "configured": bool(self.MAPBOX_ACCESS_TOKEN),
-                "type": "satellite_basemap"
+        """Returns connection readiness status for all external geospatial providers via APIKeyHandlers."""
+        try:
+            from services.api_key_handlers import key_handlers
+            return key_handlers.get_all_handlers_status()
+        except Exception as e:
+            return {
+                "gateway_status": "KEYLESS_FALLBACK_ACTIVE",
+                "active_mode": "100% KEYLESS_FREE_ENGINE",
+                "error": str(e)
             }
-        }
 
 settings = Settings()

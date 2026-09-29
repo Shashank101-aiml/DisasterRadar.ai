@@ -2,23 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Search, Navigation2 } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { colors } from '../constants/colors';
 import { useAppStore } from '../store/useAppStore';
 import { fetchMiraBhayandarGIS, predictFloodRisk } from '../services/api';
 import { geocodeLocation, fetchGlobalLiveTelemetry, type GeocodeMatch } from '../services/geocoding';
 import type { MiraBhayandarGisData } from '../types/api';
 import GisMap from '../components/gis/GisMap';
-
-const PRESET_HOTSPOTS = [
-  { name: 'Mira Bhayandar', country: 'India', lat: 19.2952, lng: 72.8544, desc: 'MBMC Coastal Creek Plain' },
-  { name: 'Mumbai', country: 'India', lat: 19.0760, lng: 72.8777, desc: 'Mithi River Basin' },
-  { name: 'Bengaluru', country: 'India', lat: 12.9716, lng: 77.5946, desc: 'Urban Valley & Lake Overflows' },
-  { name: 'Miami', country: 'USA', lat: 25.7617, lng: -80.1918, desc: 'Atlantic Coastal Sea Rise' },
-  { name: 'Jakarta', country: 'Indonesia', lat: -6.2088, lng: 106.8456, desc: 'North Jakarta Subsidence' },
-  { name: 'Tokyo', country: 'Japan', lat: 35.6762, lng: 139.6503, desc: 'Arakawa Storm Surge Basin' },
-  { name: 'Venice', country: 'Italy', lat: 45.4408, lng: 12.3155, desc: 'Lagoon Tidal Acqua Alta' },
-  { name: 'London', country: 'UK', lat: 51.5074, lng: -0.1278, desc: 'Thames Barrier Inundation' }
-];
 
 export default function GlobeGisScreen() {
   const navigation = useNavigation<any>();
@@ -68,12 +58,42 @@ export default function GlobeGisScreen() {
     }
   };
 
+  const handleDeviceGPS = async () => {
+    setIsLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setIsLoading(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const lat = parseFloat(loc.coords.latitude.toFixed(4));
+      const lng = parseFloat(loc.coords.longitude.toFixed(4));
+
+      let locName = `Device Location (${lat}, ${lng})`;
+      let country = '';
+      try {
+        const rev = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (rev && rev.length > 0) {
+          const r = rev[0];
+          locName = `${r.city || r.district || r.subregion || 'Current Area'}, ${r.region || ''}`.trim().replace(/^,|,$/g, '');
+          country = r.country || '';
+        }
+      } catch (e) {}
+
+      await handleSelectLocation({ name: locName, country, lat, lng });
+    } catch (e) {
+      console.error('Device GPS failed:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 14 }}>
       <Text style={styles.title}>🗺️ High-Resolution Topographic GIS Atlas</Text>
       <Text style={styles.subtitle}>
-        Real Mira Bhayandar risk-zone polygons, railway, and roads served from the backend GIS endpoint. Search any
-        global city for a live risk pin.
+        Real-time risk assessment, elevation, and live telemetry for any global location or your live device GPS.
       </Text>
 
       <View style={styles.searchBar}>
@@ -96,17 +116,15 @@ export default function GlobeGisScreen() {
         )}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hotspotRow}>
-        {PRESET_HOTSPOTS.map((h) => {
-          const isActive = activeLocation.name === h.name;
-          return (
-            <TouchableOpacity key={h.name} style={[styles.hotspotChip, isActive && styles.hotspotChipActive]} onPress={() => handleSelectLocation(h)}>
-              <Text style={[styles.hotspotName, isActive && styles.hotspotNameActive]}>{h.name}</Text>
-              <Text style={styles.hotspotDesc}>{h.desc}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#059669', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 }}
+          onPress={handleDeviceGPS}
+          disabled={isLoading}
+        >
+          <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 12 }}>📍 Center on My Live Device GPS</Text>
+        </TouchableOpacity>
+      </View>
 
       <GisMap gisData={gisData} targetLocation={activeLocation} isMiraBhayandar={isMiraBhayandar} predictionProbability={prediction?.probability} />
 

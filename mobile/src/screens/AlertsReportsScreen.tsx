@@ -1,24 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Search, Download } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { colors } from '../constants/colors';
 import { useAppStore } from '../store/useAppStore';
 import { fetchAlertScoring, fetchRainfallImpact, fetchWeeklyReports, predictFloodRisk } from '../services/api';
 import { geocodeLocation, fetchGlobalLiveTelemetry, type GeocodeMatch } from '../services/geocoding';
 import { exportCsv, toCsvRow } from '../services/csvExport';
 import type { AlertScoringResponse, RainfallImpactResponse, WeeklyReportResponse, PrecautionItem } from '../types/api';
-
-const PRESET_LOCATIONS = [
-  { name: 'Mira Bhayandar', country: 'Maharashtra, India', lat: 19.2952, lng: 72.8544 },
-  { name: 'Mumbai', country: 'Maharashtra, India', lat: 19.0760, lng: 72.8777 },
-  { name: 'Bengaluru', country: 'Karnataka, India', lat: 12.9716, lng: 77.5946 },
-  { name: 'Chennai', country: 'Tamil Nadu, India', lat: 13.0827, lng: 80.2707 },
-  { name: 'Mangaluru', country: 'Karnataka, India', lat: 12.9141, lng: 74.8560 },
-  { name: 'Kolkata', country: 'West Bengal, India', lat: 22.5726, lng: 88.3639 },
-  { name: 'Delhi', country: 'India', lat: 28.6139, lng: 77.2090 },
-  { name: 'London', country: 'United Kingdom', lat: 51.5074, lng: -0.1278 },
-  { name: 'Tokyo', country: 'Japan', lat: 35.6762, lng: 139.6503 }
-];
 
 const SUB_TABS = [
   { id: 'threshold', label: '🚨 Threshold & Status' },
@@ -108,6 +97,37 @@ export default function AlertsReportsScreen() {
     }
   };
 
+  const handleDeviceGPS = async () => {
+    setIsFetchingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setIsFetchingLocation(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const lat = parseFloat(loc.coords.latitude.toFixed(4));
+      const lng = parseFloat(loc.coords.longitude.toFixed(4));
+
+      let locName = `Device Location (${lat}, ${lng})`;
+      let country = '';
+      try {
+        const rev = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (rev && rev.length > 0) {
+          const r = rev[0];
+          locName = `${r.city || r.district || r.subregion || 'Current Area'}, ${r.region || ''}`.trim().replace(/^,|,$/g, '');
+          country = r.country || '';
+        }
+      } catch (e) {}
+
+      await handleApplyLocation({ name: locName, country, lat, lng });
+    } catch (e) {
+      console.error('Device GPS failed:', e);
+    } finally {
+      setIsFetchingLocation(false);
+    }
+  };
+
   const weekRecords = (weeklyReport?.weekly_records ?? []) as any[];
   const incScenarios = (rainfallImpact?.increase_scenarios ?? []) as any[];
   const decScenarios = (rainfallImpact?.decrease_scenarios ?? []) as any[];
@@ -169,12 +189,14 @@ export default function AlertsReportsScreen() {
                 ))}
               </View>
             )}
-            <View style={styles.presetRow}>
-              {PRESET_LOCATIONS.map((p) => (
-                <TouchableOpacity key={p.name} style={styles.presetChip} onPress={() => handleApplyLocation(p)}>
-                  <Text style={styles.presetChipText}>{p.name}</Text>
-                </TouchableOpacity>
-              ))}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#059669', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12 }}
+                onPress={handleDeviceGPS}
+                disabled={isFetchingLocation}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 12 }}>📍 Use My Device GPS</Text>
+              </TouchableOpacity>
             </View>
             {isFetchingLocation && <ActivityIndicator color={colors.accent} style={{ marginTop: 8 }} />}
           </View>

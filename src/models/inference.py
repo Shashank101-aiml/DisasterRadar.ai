@@ -108,7 +108,7 @@ class FloodInferencePipeline:
             prob_raw = 0.5
             shap_breakdown = [(c, 0.0) for c in cols]
             
-        prob_percent = round(min(99.4, max(2.5, prob_raw * 100.0)), 1)
+        prob_percent = round(min(100.0, max(0.0, prob_raw * 100.0)), 1)
         
         # 6. Risk Stratification & Actionable Advisory
         if prob_percent >= 70.0:

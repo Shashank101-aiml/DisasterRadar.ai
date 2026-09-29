@@ -80,15 +80,34 @@ def fetch_live_stations_from_open_meteo() -> List[StationData]:
                 cur_hum = round(float(hums[-1]), 1) if hums else 75.0
                 elev = float(loc_data.get("elevation", meta.get("base_elev", 15.0)))
 
-                # Dynamic flood probability calculation based on real Open-Meteo inputs
-                elev_factor = max(0.0, min(1.0, (800.0 - elev) / 800.0))
-                rain_score = (r72 / 180.0) * 0.45 + (r24 / 90.0) * 0.35
-                hum_factor = ((cur_hum - 50.0) / 50.0) * 0.10
-                
-                raw_score = rain_score + (elev_factor * 0.10) + hum_factor
-                prob = round(max(3.5, min(96.8, (raw_score * 75.0) + (15.0 if r24 > 30 else 5.0))), 1)
-
-                risk_key, risk_label = _compute_risk_level(prob)
+                # 100% Dynamic Machine Learning flood probability inference
+                try:
+                    from services.ensemble_predictor import predict_flood_risk_ensemble
+                    from models.schemas import PredictionInput
+                    
+                    stn_pred = predict_flood_risk_ensemble(PredictionInput(
+                        rainfall24h=r24,
+                        rainfall72h=r72,
+                        temperature=cur_temp,
+                        humidity=cur_hum,
+                        windSpeed=15.0,
+                        pressure=1008.0,
+                        elevation=elev,
+                        latitude=meta["lat"],
+                        longitude=meta["lng"],
+                        location=meta["name"]
+                    ))
+                    prob = float(stn_pred.probability)
+                    risk_key = stn_pred.riskClass.lower()
+                    risk_label = stn_pred.riskLevel
+                except Exception as ml_err:
+                    # Fallback formula if ML pipeline is initializing
+                    elev_factor = max(0.0, min(1.0, (800.0 - elev) / 800.0))
+                    rain_score = (r72 / 180.0) * 0.45 + (r24 / 90.0) * 0.35
+                    hum_factor = ((cur_hum - 50.0) / 50.0) * 0.10
+                    raw_score = rain_score + (elev_factor * 0.10) + hum_factor
+                    prob = round(max(3.5, min(96.8, (raw_score * 75.0) + (15.0 if r24 > 30 else 5.0))), 1)
+                    risk_key, risk_label = _compute_risk_level(prob)
 
                 results.append(StationData(
                     name=meta["name"],

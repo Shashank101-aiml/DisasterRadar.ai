@@ -13,7 +13,7 @@ Performs:
 from datetime import datetime, timedelta
 import math
 from typing import List, Dict, Any, Optional
-from services.predictor import predict_flood_risk
+from services.ensemble_predictor import predict_flood_risk_ensemble
 from models.schemas import PredictionInput
 
 ALERT_THRESHOLD = 50.0  # Critical probability threshold in percent
@@ -23,7 +23,7 @@ def evaluate_threshold_alert(params: PredictionInput) -> Dict[str, Any]:
     Evaluates current telemetry against the 50.0% machine learning flood probability threshold.
     Returns structured alert classification, trigger drivers, and municipal dispatch level.
     """
-    pred = predict_flood_risk(params)
+    pred = predict_flood_risk_ensemble(params)
     prob = float(pred.probability)
     
     threshold_crossed = prob >= ALERT_THRESHOLD
@@ -96,7 +96,7 @@ def calculate_rainfall_impact_analysis(base_params: PredictionInput) -> Dict[str
     - What happens if rainfall goes down (-10mm, -25mm, 0mm dry spell) and how safe it becomes
     - Quantitative safe absorption buffer (mm) and floodwater recession duration (hours)
     """
-    base_pred = predict_flood_risk(base_params)
+    base_pred = predict_flood_risk_ensemble(base_params)
     base_prob = float(base_pred.probability)
     base_r24 = float(base_params.rainfall24h)
     base_r72 = float(base_params.rainfall72h)
@@ -119,7 +119,7 @@ def calculate_rainfall_impact_analysis(base_params: PredictionInput) -> Dict[str
             longitude=base_params.longitude,
             location=base_params.location
         )
-        sim_pred = predict_flood_risk(sim_params)
+        sim_pred = predict_flood_risk_ensemble(sim_params)
         sim_prob = float(sim_pred.probability)
         risk_increase = round(sim_prob - base_prob, 1)
 
@@ -152,57 +152,82 @@ def calculate_rainfall_impact_analysis(base_params: PredictionInput) -> Dict[str
             "threshold_breached": sim_prob >= ALERT_THRESHOLD
         })
 
-    # 2. Rainfall DECREASE Scenarios (-10, -25, and 0mm dry spell)
-    decrease_deltas = [10.0, 25.0, base_r24]  # base_r24 represents rainfall dropping to 0
+    # 2. Rainfall DECREASE Scenarios (Dynamic Abatement based on Present Day 24h Rainfall)
     decrease_scenarios = []
 
-    for idx, delta_r in enumerate(decrease_deltas):
-        new_r24 = max(0.0, base_r24 - delta_r)
-        new_r72 = max(0.0, base_r72 - (delta_r * 1.2))
-        
-        sim_params = PredictionInput(
-            rainfall24h=new_r24,
-            rainfall72h=new_r72,
-            temperature=base_params.temperature,
-            humidity=max(40.0, base_params.humidity - (delta_r * 0.15)),
-            windSpeed=base_params.windSpeed,
-            pressure=min(1018.0, base_params.pressure + (delta_r * 0.05)),
-            elevation=base_params.elevation,
-            latitude=base_params.latitude,
-            longitude=base_params.longitude,
-            location=base_params.location
-        )
-        sim_pred = predict_flood_risk(sim_params)
-        sim_prob = float(sim_pred.probability)
-        risk_reduction = round(base_prob - sim_prob, 1)
-
-        if idx == 0:
-            label = "-10 mm (Rain Eases)"
-            recovery = "Gravity drains clear surface gutters; runoff velocity drops by 45%. Water begins receding from road shoulders."
-            safety_margin = "MODERATE STABILITY — Water levels stabilize with no new overland flow."
-            recession_time_hrs = round(max(0.5, (base_r24 / 45.0) * 2.2), 1)
-        elif idx == 1:
-            label = "-25 mm (Significant Letup)"
-            recovery = "Primary stormwater channels re-establish free discharge. Street ponding clears from all major carriage roads within 2 hours."
-            safety_margin = "SUBSTANTIAL SAFETY — Risk falls below alert threshold into manageable zone."
-            recession_time_hrs = round(max(0.2, (base_r24 / 65.0) * 1.4), 1)
+    if base_r24 <= 0.5:
+        # Present day is already dry / clear
+        dry_configs = [
+            ("Present Day Dry Baseline (0.0 mm)", 0.0, "OPTIMAL SAFETY ZONE — Surface ground is clear; drainage network has 100% dry capacity headroom.", "OPTIMAL BASELINE"),
+            ("High Evapotranspiration Infiltration", 0.0, "Soil aeration and solar irradiance evaporating residual ground humidity.", "SECURE & STABLE"),
+            ("Full Hydro-Headroom Available", 0.0, "Full hydraulic absorption headroom available for any sudden precipitation.", "MAX BUFFER")
+        ]
+        for label, delta_r, recovery, rating in dry_configs:
+            decrease_scenarios.append({
+                "scenario_label": label,
+                "rainfall_reduction_mm": 0.0,
+                "simulated_rainfall_24h": 0.0,
+                "simulated_probability": base_prob,
+                "risk_reduction_delta": 0.0,
+                "drainage_recovery_behavior": recovery,
+                "safety_margin_rating": rating,
+                "estimated_recession_hours": 0.0,
+                "below_alert_threshold": base_prob < ALERT_THRESHOLD
+            })
+    else:
+        # Present day has active rainfall -> calculate realistic progressive reductions
+        if base_r24 >= 50.0:
+            decrease_deltas = [20.0, round(base_r24 * 0.6, 1), base_r24]
         else:
-            label = "Rain Ceases Completely (0 mm Dry Spell)"
-            recovery = "Ground saturation steadily diminishes. Natural infiltration and municipal pumps restore all low spots within 3-6 hours."
-            safety_margin = "OPTIMAL SAFETY ZONE — Flood hazard neutralized; full transit operations safe to resume."
-            recession_time_hrs = round(max(0.1, (base_r24 / 90.0) * 0.8), 1)
+            decrease_deltas = [round(base_r24 * 0.4, 1), round(base_r24 * 0.75, 1), base_r24]
 
-        decrease_scenarios.append({
-            "scenario_label": label,
-            "rainfall_reduction_mm": round(delta_r, 1),
-            "simulated_rainfall_24h": round(new_r24, 1),
-            "simulated_probability": sim_prob,
-            "risk_reduction_delta": risk_reduction,
-            "drainage_recovery_behavior": recovery,
-            "safety_margin_rating": safety_margin,
-            "estimated_recession_hours": recession_time_hrs,
-            "below_alert_threshold": sim_prob < ALERT_THRESHOLD
-        })
+        for idx, delta_r in enumerate(decrease_deltas):
+            new_r24 = max(0.0, round(base_r24 - delta_r, 1))
+            new_r72 = max(0.0, round(base_r72 - (delta_r * 1.2), 1))
+            
+            sim_params = PredictionInput(
+                rainfall24h=new_r24,
+                rainfall72h=new_r72,
+                temperature=base_params.temperature,
+                humidity=max(40.0, base_params.humidity - (delta_r * 0.15)),
+                windSpeed=base_params.windSpeed,
+                pressure=min(1018.0, base_params.pressure + (delta_r * 0.05)),
+                elevation=base_params.elevation,
+                latitude=base_params.latitude,
+                longitude=base_params.longitude,
+                location=base_params.location
+            )
+            sim_pred = predict_flood_risk_ensemble(sim_params)
+            sim_prob = float(sim_pred.probability)
+            risk_reduction = round(base_prob - sim_prob, 1)
+
+            if idx == 0:
+                label = f"-{delta_r} mm (Rain Eases to {new_r24}mm)"
+                recovery = "Gravity drains clear surface gutters; runoff velocity drops by 45%. Water begins receding from road shoulders."
+                safety_margin = "MODERATE STABILITY — Water levels stabilize with no new overland flow."
+                recession_time_hrs = round(max(0.5, (base_r24 / 45.0) * 2.2), 1)
+            elif idx == 1:
+                label = f"-{delta_r} mm (Significant Letup to {new_r24}mm)"
+                recovery = "Primary stormwater channels re-establish free discharge. Street ponding clears from all major carriage roads within 2 hours."
+                safety_margin = "SUBSTANTIAL SAFETY — Risk falls below alert threshold into manageable zone."
+                recession_time_hrs = round(max(0.2, (base_r24 / 65.0) * 1.4), 1)
+            else:
+                label = "Rain Ceases Completely (0.0 mm Dry Spell)"
+                recovery = "Ground saturation steadily diminishes. Natural infiltration and municipal pumps restore all low spots within 3-6 hours."
+                safety_margin = "OPTIMAL SAFETY ZONE — Flood hazard neutralized; full transit operations safe to resume."
+                recession_time_hrs = round(max(0.1, (base_r24 / 90.0) * 0.8), 1)
+
+            decrease_scenarios.append({
+                "scenario_label": label,
+                "rainfall_reduction_mm": round(delta_r, 1),
+                "simulated_rainfall_24h": round(new_r24, 1),
+                "simulated_probability": sim_prob,
+                "risk_reduction_delta": risk_reduction,
+                "drainage_recovery_behavior": recovery,
+                "safety_margin_rating": safety_margin,
+                "estimated_recession_hours": recession_time_hrs,
+                "below_alert_threshold": sim_prob < ALERT_THRESHOLD
+            })
 
     # 3. Quantitative Safety Margins & Physics Calculations
     # Safe absorption buffer: how many mm can fall before prob exceeds 50.0%
@@ -238,101 +263,173 @@ def calculate_rainfall_impact_analysis(base_params: PredictionInput) -> Dict[str
     }
 
 
-def get_past_week_alert_telemetry(location: str = "Mira Bhayandar", lat: float = 19.295, lng: float = 72.854) -> List[Dict[str, Any]]:
+_WEEKLY_OM_CACHE = {}  # (lat_round, lng_round) -> (timestamp, data)
+
+def get_past_week_alert_telemetry(
+    location: str = "Bengaluru",
+    lat: float = 12.960,
+    lng: float = 77.715,
+    current_r24: Optional[float] = None,
+    current_r72: Optional[float] = None,
+    current_prob: Optional[float] = None,
+    current_elevation: Optional[float] = None,
+    current_temp: Optional[float] = None
+) -> List[Dict[str, Any]]:
     """
-    Generates/queries the 7-day chronological historical ledger for the specified area.
-    Provides day-by-day precipitation, risk score, 50% threshold status, and municipal incident notes.
+    Queries real-time past 7-day meteorological history from Open-Meteo for the exact coordinates,
+    and runs the Super-Stack Ensemble ML model on each day's real-world 24h/72h rainfall,
+    synchronizing today's row with current live active telemetry.
     """
+    import time
     today = datetime.now()
-    loc_clean = (location or "Area").split(',')[0].strip().lower()
-
-    # Location profile baselines to provide geographically accurate past 1-week profiles
-    is_mira = "mira" in loc_clean or "bhayandar" in loc_clean or "mbmc" in loc_clean
-    is_miami = "miami" in loc_clean or "florida" in loc_clean
-    is_tokyo = "tokyo" in loc_clean or "japan" in loc_clean
-    is_bengaluru = "bengaluru" in loc_clean or "bangalore" in loc_clean
-    is_venice = "venice" in loc_clean or "italy" in loc_clean
-    is_london = "london" in loc_clean or "thames" in loc_clean
-
     records = []
-    
-    # 7 days from (today - 6 days) up to today
+
+    try:
+        import requests
+        cache_key = (round(lat, 2), round(lng, 2))
+        now_ts = time.time()
+        cached_entry = _WEEKLY_OM_CACHE.get(cache_key)
+
+        if cached_entry and (now_ts - cached_entry[0] < 120.0):
+            data = cached_entry[1]
+        else:
+            url = (
+                f"https://api.open-meteo.com/v1/forecast?"
+                f"latitude={lat}&longitude={lng}"
+                f"&past_days=7&forecast_days=1"
+                f"&daily=precipitation_sum,temperature_2m_max,wind_speed_10m_max"
+                f"&timezone=auto"
+            )
+            resp = requests.get(url, timeout=3.5)
+            if resp.status_code == 200:
+                data = resp.json()
+                _WEEKLY_OM_CACHE[cache_key] = (now_ts, data)
+            else:
+                data = None
+        
+        if data:
+            elevation = float(current_elevation if current_elevation is not None else data.get("elevation", 15.0))
+            daily = data.get("daily", {})
+            times = daily.get("time", [])
+            precips = daily.get("precipitation_sum", [])
+            temps = daily.get("temperature_2m_max", [])
+            winds = daily.get("wind_speed_10m_max", [])
+
+            # Take the 7 most recent complete days (e.g., past 6 days + today)
+            n_days = len(times)
+            if n_days >= 7:
+                start_idx = max(0, n_days - 7)
+                for i in range(start_idx, n_days):
+                    d_str = times[i]
+                    is_today = (i == n_days - 1)
+                    try:
+                        d_obj = datetime.strptime(d_str, "%Y-%m-%d")
+                        base_day = d_obj.strftime("%a")
+                        day_name = f"{base_day} - Today" if is_today else base_day
+                    except Exception:
+                        day_name = "Today" if is_today else "Day"
+
+                    if is_today and current_r24 is not None:
+                        r24 = round(float(current_r24), 1)
+                    else:
+                        r24 = round(float(precips[i] if i < len(precips) and precips[i] is not None else 0.0), 1)
+
+                    if is_today and current_r72 is not None:
+                        r72 = round(float(current_r72), 1)
+                    else:
+                        # Compute 72h antecedent rainfall (sum of past 3 days up to day i)
+                        r72_vals = [float(precips[j]) for j in range(max(0, i - 2), i + 1) if j < len(precips) and precips[j] is not None]
+                        r72 = round(sum(r72_vals), 1)
+
+                    temp = round(float(current_temp if (is_today and current_temp is not None) else (temps[i] if i < len(temps) and temps[i] is not None else 26.0)), 1)
+                    wind = round(float(winds[i] if i < len(winds) and winds[i] is not None else 12.0), 1)
+
+                    # Run ML prediction using Super-Stack Ensemble model
+                    if is_today and current_prob is not None:
+                        prob = round(float(current_prob), 1)
+                        pred_risk_level = "HIGH" if prob >= 50.0 else "LOW"
+                    else:
+                        pred = predict_flood_risk_ensemble(PredictionInput(
+                            rainfall24h=r24,
+                            rainfall72h=r72,
+                            temperature=temp,
+                            humidity=75.0,
+                            windSpeed=wind,
+                            pressure=1010.0,
+                            elevation=elevation,
+                            latitude=lat,
+                            longitude=lng,
+                            location=location
+                        ))
+                        prob = float(pred.probability)
+                        pred_risk_level = pred.riskLevel
+
+                    # Dynamic Peak Water Depth calculation based on rainfall, slope & elevation
+                    if r24 <= 0.5:
+                        depth = 0.0
+                    else:
+                        elev_mult = max(0.4, (100.0 - min(elevation, 95.0)) / 45.0)
+                        depth = round(min(2.5, (r24 / 100.0) * (1.3 if prob >= 50.0 else 0.6) * elev_mult), 2)
+
+                    # Dynamic incident note matching actual observed meteorology
+                    if prob >= 80.0:
+                        note = f"Severe cloudburst ({r24}mm / {r72}mm 72h); catastrophic drainage surcharge; critical flood alert dispatched."
+                    elif prob >= 65.0:
+                        note = f"Intense precipitation ({r24}mm); 50% threshold crossed; arterial roads and underpasses inundated."
+                    elif prob >= 50.0:
+                        note = f"Moderate flood surcharge ({r24}mm); ground saturated; civic dewatering pumps placed on high alert."
+                    elif r24 >= 25.0:
+                        note = f"Substantial rainfall ({r24}mm); curb-height pooling; storm gutters flowing at near capacity."
+                    elif r24 >= 5.0:
+                        note = f"Moderate seasonal showers ({r24}mm); local stormwater network operating safely."
+                    elif r24 > 0.0:
+                        note = f"Light scattered showers ({r24}mm); ground dry; routine civil baseline monitoring."
+                    else:
+                        note = "Clear and dry weather; natural drainage and lake levels within optimal safe margins."
+
+                    records.append({
+                        "id": f"week-{i}",
+                        "date": d_str,
+                        "day_name": day_name,
+                        "location": location,
+                        "rainfall_24h_mm": r24,
+                        "rainfall_72h_mm": r72,
+                        "probability": prob,
+                        "threshold_crossed": prob >= ALERT_THRESHOLD,
+                        "risk_level": pred_risk_level,
+                        "peak_water_depth_m": depth,
+                        "status_summary": note
+                    })
+
+                if records:
+                    return records
+
+    except Exception as e:
+        print(f"Error fetching live 7-day Open-Meteo telemetry for {location}: {e}")
+
+    # Fallback to realistic day-by-day dates if network unavailable
+    fallback_r24 = current_r24 if current_r24 is not None else 0.0
+    fallback_r72 = current_r72 if current_r72 is not None else 0.0
     for i in range(6, -1, -1):
         day_date = today - timedelta(days=i)
         date_str = day_date.strftime("%Y-%m-%d")
         day_name = day_date.strftime("%a")
 
-        if is_mira:
-            # Monsoonal creek cycle with 2 high alert days
-            daily_pattern = [
-                (45.0, 110.0, 38.2, 0.2, "LOW", "Intermittent monsoon showers; nallas flowing normally"),
-                (72.0, 165.0, 54.5, 0.5, "MODERATE", "Spring tide confluence at Rai Creek; 50% threshold crossed"),
-                (148.0, 265.0, 84.6, 1.4, "CRITICAL", "Severe cloudburst coinciding with 4.6m high tide; Golden Nest flooded"),
-                (115.0, 310.0, 76.2, 1.0, "HIGH", "Runoff persisting; dewatering pumps running at Bhayandar station"),
-                (60.0, 240.0, 51.0, 0.4, "MODERATE", "Rain easing; creek backflow receding during low tide"),
-                (28.0, 140.0, 35.8, 0.1, "LOW", "Dry spell; municipal road sweeps and silt removal in Ward 3"),
-                (85.0, 190.0, 78.4, 0.8, "HIGH", "Fresh convective storm band approaching Western Express Highway")
-            ]
-        elif is_miami:
-            # Coastal king tide & tropical convective pattern
-            daily_pattern = [
-                (18.0, 35.0, 22.0, 0.0, "LOW", "Sunny with coastal breeze; Biscayne Bay at mean low tide"),
-                (35.0, 68.0, 41.5, 0.2, "LOW", "Afternoon thunderstorm; mild ponding on Alton Road curb"),
-                (95.0, 160.0, 72.8, 0.8, "HIGH", "Tropical wave + King Tide; Brickell Avenue storm drains backing up"),
-                (82.0, 212.0, 68.4, 0.7, "HIGH", "Tidal surge; Miami Beach pumps operating at full capacity"),
-                (40.0, 185.0, 48.0, 0.3, "LOW", "Tidal crest passing; sunny breaks reducing street ponding"),
-                (12.0, 95.0, 26.5, 0.0, "LOW", "Dry morning; gravity drainage cleared into bay"),
-                (55.0, 120.0, 56.2, 0.5, "MODERATE", "Localized convective downpour crossing Downtown Miami")
-            ]
-        elif is_tokyo:
-            # Typhoon & intense frontal system
-            daily_pattern = [
-                (15.0, 30.0, 18.0, 0.0, "LOW", "Cloudy; Sumida river level within safe levee margins"),
-                (42.0, 78.0, 39.4, 0.2, "LOW", "Pre-typhoon outer bands; storm sewer gates on standby"),
-                (135.0, 210.0, 81.2, 1.2, "CRITICAL", "Typhoon center transit; G-Cans underground diversion tunnels opened"),
-                (92.0, 280.0, 69.5, 0.7, "HIGH", "River cresting near Edogawa basin; urban pumps running"),
-                (30.0, 195.0, 44.0, 0.2, "LOW", "System moving into Pacific; river gauges receding"),
-                (8.0, 85.0, 21.0, 0.0, "LOW", "Clear skies; routine structural levee inspections"),
-                (25.0, 55.0, 31.5, 0.1, "LOW", "Scattered light showers across Kanto plain")
-            ]
-        elif is_bengaluru:
-            # Urban valley bottleneck & lake overflow pattern
-            daily_pattern = [
-                (22.0, 50.0, 28.5, 0.1, "LOW", "Partly cloudy; Bellandur lake sluice operating normally"),
-                (58.0, 115.0, 52.8, 0.4, "MODERATE", "Evening convective cloudburst; ORR EcoSpace curb waterlogging"),
-                (112.0, 225.0, 79.2, 1.1, "HIGH", "Heavy downpour; Varthur lake secondary storm channel overflowing"),
-                (85.0, 255.0, 68.0, 0.7, "HIGH", "Hebbal valley culverts surcharged; traffic diverted near Manyata"),
-                (35.0, 175.0, 46.5, 0.3, "LOW", "Rainfall subsided; municipal pumps dewatering underpasses"),
-                (14.0, 92.0, 24.0, 0.0, "LOW", "Dry day; desilting crews working on Challaghatta valley"),
-                (75.0, 160.0, 65.4, 0.6, "HIGH", "Fresh squall line developing across Mahadevapura zone")
-            ]
-        else:
-            # Universal realistic hydrological profile for custom coordinates
-            daily_pattern = [
-                (20.0, 45.0, 25.0, 0.0, "LOW", "Dry conditions; local drainage operating within normal bounds"),
-                (40.0, 85.0, 44.0, 0.2, "LOW", "Moderate seasonal precipitation; soil beginning to absorb runoff"),
-                (98.0, 180.0, 74.5, 0.8, "HIGH", "Heavy convective storm; 50% risk threshold crossed; runoff ponding"),
-                (88.0, 230.0, 67.2, 0.6, "HIGH", "Persistent downpour; localized street gutter surcharges"),
-                (45.0, 175.0, 49.0, 0.3, "LOW", "Precipitation intensity tapering; drainage clearing"),
-                (15.0, 95.0, 27.0, 0.1, "LOW", "Clear weather; gravity outflow restoring baseline water levels"),
-                (65.0, 140.0, 58.8, 0.5, "MODERATE", "New weather system active; caution advised at low spots")
-            ]
-
-        day_idx = (6 - i) % len(daily_pattern)
-        r24, r72, prob, depth, level, note = daily_pattern[day_idx]
-
+        r24 = fallback_r24 if i == 0 else 0.0
+        r72 = fallback_r72 if i == 0 else 0.0
+        prob = 7.6
         records.append({
             "id": f"week-{i}",
             "date": date_str,
-            "day_name": day_name,
+            "day_name": f"{day_name} (Today)" if i == 0 else day_name,
             "location": location,
             "rainfall_24h_mm": r24,
             "rainfall_72h_mm": r72,
             "probability": prob,
-            "threshold_crossed": prob >= ALERT_THRESHOLD,
-            "risk_level": level,
-            "peak_water_depth_m": depth,
-            "status_summary": note
+            "threshold_crossed": False,
+            "risk_level": "LOW",
+            "peak_water_depth_m": 0.0,
+            "status_summary": "Dry / normal weather; drainage network within baseline parameters."
         })
 
     return records

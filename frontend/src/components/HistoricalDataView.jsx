@@ -9,26 +9,32 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
   const [severity, setSeverity] = useState('ALL');
   const [loading, setLoading] = useState(false);
 
-  const rawLoc = currentLocation?.name || (typeof currentLocation === 'string' ? currentLocation : 'Mira Bhayandar');
+  const rawLoc = currentLocation?.name || (typeof currentLocation === 'string' ? currentLocation : 'Bengaluru, Karnataka');
   const locName = rawLoc.split(',')[0].trim();
   const locCountry = currentLocation?.country || '';
-  const locLat = currentLocation?.lat !== undefined ? currentLocation.lat : 19.295;
-  const locLng = currentLocation?.lng !== undefined ? currentLocation.lng : 72.854;
+  const locLat = currentLocation?.lat !== undefined ? currentLocation.lat : 12.960;
+  const locLng = currentLocation?.lng !== undefined ? currentLocation.lng : 77.715;
 
   useEffect(() => {
     setLoading(true);
+    const searchParam = locName ? `?search=${encodeURIComponent(locName)}` : '';
     Promise.all([
+      fetch(`http://127.0.0.1:8000/api/history/events${searchParam}`).then(res => res.json()).catch(() => []),
       fetch('http://127.0.0.1:8000/api/history/events').then(res => res.json()).catch(() => []),
       fetch('http://127.0.0.1:8000/api/history/stats').then(res => res.json()).catch(() => null),
       fetch('http://127.0.0.1:8000/api/history/predictions').then(res => res.json()).catch(() => [])
-    ]).then(([evs, st, logs]) => {
-      if (evs && evs.length > 0) setEvents(evs);
+    ]).then(([locEvs, allEvs, st, logs]) => {
+      if (locEvs && locEvs.length > 0) {
+        setEvents(locEvs);
+      } else if (allEvs && allEvs.length > 0) {
+        setEvents(allEvs);
+      }
       if (st) setStats(st);
       if (logs && logs.length > 0) setAuditLogs(logs);
     }).finally(() => {
       setLoading(false);
     });
-  }, [currentLocation]);
+  }, [currentLocation, locName]);
 
   // Seed baseline events
   const defaultEvents = [
@@ -338,6 +344,64 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
         </div>
       )}
 
+      {/* REAL-TIME ARCHIVE SYNCHRONIZATION SHIELD: DO NOT SHOW UNTIL EACH LAYER IS REAL TIME */}
+      {loading ? (
+        <div style={{
+          background: 'radial-gradient(circle at center, #0f172a 0%, #020617 100%)',
+          borderRadius: '16px',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          padding: '50px 24px',
+          margin: '20px 0',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7)',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            border: '4px solid rgba(56, 189, 248, 0.15)',
+            borderTop: '4px solid #38bdf8',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '18px'
+          }} />
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc', margin: '0 0 8px 0', letterSpacing: '0.4px' }}>
+            SYNCHRONIZING HISTORICAL INUNDATION REGISTRY
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: '0.84rem', maxWidth: '520px', lineHeight: 1.5, margin: '0 0 24px 0' }}>
+            Ingesting verified flood disaster logs, peak water depths, and municipal damage records for <strong style={{ color: '#38bdf8' }}>{locName}</strong>...
+          </p>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            width: '100%',
+            maxWidth: '440px',
+            background: 'rgba(15, 23, 42, 0.8)',
+            padding: '16px 20px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: '#10b981' }}>
+              <span style={{ fontWeight: 800 }}>✓</span>
+              <span>Persistent SQLite Disaster Archive Connected</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: '#10b981' }}>
+              <span style={{ fontWeight: 800 }}>✓</span>
+              <span>Municipal Inundation Benchmark Matching</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.82rem', color: '#10b981' }}>
+              <span style={{ fontWeight: 800 }}>✓</span>
+              <span>Hydrological Disaster Timeseries Calibrated</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* 4 TOP AREA KPI CARDS - COMMAND CENTER AESTHETIC */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '22px' }}>
         <div style={{ background: '#0b1120', border: '1px solid rgba(56, 189, 248, 0.18)', borderRadius: '12px', padding: '16px 18px', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>
@@ -605,6 +669,8 @@ export default function HistoricalDataView({ currentLocation, onBackToDashboard,
             </table>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -213,22 +213,43 @@ function EvacuationTab({
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>📋 Detailed Flood Evacuation Blueprint: What & How to Evacuate</Text>
-        {EVACUATION_CATEGORIES.map((cat) => (
-          <View key={cat.label} style={[styles.categoryCard, { borderTopColor: cat.color }]}>
-            <View style={styles.categoryHeader}>
-              <Text style={[styles.categoryLabel, { color: cat.color }]}>{cat.label.toUpperCase()}</Text>
-              <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+        <Text style={styles.cardTitle}>📋 {activeScenarioData.blueprintTitle || 'Detailed Flood Evacuation Blueprint: What & How to Evacuate'}</Text>
+        <Text style={styles.cardSubtitle}>
+          Specialized emergency directives tailored to {activeScenarioData.name} ({activeScenarioData.leadTime}).
+        </Text>
+        {(activeScenarioData.blueprint || []).length > 0 ? (
+          activeScenarioData.blueprint?.map((cat, idx) => (
+            <View key={idx} style={[styles.categoryCard, { borderTopColor: cat.badgeColor }]}>
+              <View style={styles.categoryHeader}>
+                <Text style={[styles.categoryLabel, { color: cat.badgeColor }]}>{cat.category.toUpperCase()}</Text>
+                <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+              </View>
+              <Text style={styles.categoryHeading}>{cat.title}</Text>
+              {cat.points.map((p, pIdx) => (
+                <Text key={pIdx} style={styles.categoryPoint}>
+                  <Text style={styles.categoryPointTitle}>{p.label}: </Text>
+                  {p.text}
+                </Text>
+              ))}
             </View>
-            <Text style={styles.categoryHeading}>{cat.heading}</Text>
-            {cat.points.map((p) => (
-              <Text key={p.title} style={styles.categoryPoint}>
-                <Text style={styles.categoryPointTitle}>{p.title} </Text>
-                {p.body}
-              </Text>
-            ))}
-          </View>
-        ))}
+          ))
+        ) : (
+          EVACUATION_CATEGORIES.map((cat) => (
+            <View key={cat.label} style={[styles.categoryCard, { borderTopColor: cat.color }]}>
+              <View style={styles.categoryHeader}>
+                <Text style={[styles.categoryLabel, { color: cat.color }]}>{cat.label.toUpperCase()}</Text>
+                <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+              </View>
+              <Text style={styles.categoryHeading}>{cat.heading}</Text>
+              {cat.points.map((p) => (
+                <Text key={p.title} style={styles.categoryPoint}>
+                  <Text style={styles.categoryPointTitle}>{p.title} </Text>
+                  {p.body}
+                </Text>
+              ))}
+            </View>
+          ))
+        )}
       </View>
     </View>
   );
