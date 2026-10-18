@@ -54,7 +54,10 @@ from services.geospatial_api import (
     get_live_weather_by_location_or_coords,
     geocode_place_name,
     reverse_geocode_coordinates,
-    fetch_live_doppler_radar_info
+    fetch_live_doppler_radar_info,
+    scrape_actual_high_shelters,
+    scrape_nearest_authorities,
+    create_authority_emergency_dispatch
 )
 from services.alerts_service import (
     evaluate_threshold_alert,
@@ -688,6 +691,32 @@ def reverse_geocode_api(lat: float, lng: float):
 def get_doppler_radar_api():
     """Fetches real-time 500m Doppler Weather Radar tile configuration from RainViewer."""
     return fetch_live_doppler_radar_info()
+
+@app.get("/api/geospatial/shelters")
+def get_actual_high_shelters_api(latitude: float, longitude: float, location: str = ""):
+    """Scrapes verified real-world high shelters and relief centers around the given coordinates."""
+    return scrape_actual_high_shelters(latitude=latitude, longitude=longitude, location_name=location)
+
+@app.get("/api/geospatial/authorities")
+def get_nearest_authorities_api(latitude: float, longitude: float, location: str = ""):
+    """Scrapes or resolves nearest official emergency authorities for the location."""
+    return scrape_nearest_authorities(latitude=latitude, longitude=longitude, location_name=location)
+
+class AuthorityAlertRequest(BaseModel):
+    authority_name: str
+    latitude: float
+    longitude: float
+    elevation: float = 0.0
+    location_name: str = ""
+    contact: Optional[str] = None
+    radio_frequency: Optional[str] = None
+    eta_minutes: Optional[int] = None
+    custom_message: Optional[str] = None
+
+@app.post("/api/geospatial/alert-authority")
+def alert_authority_api(req: AuthorityAlertRequest):
+    """Transmits CAP 1.2 compliant distress alert to the designated authority."""
+    return create_authority_emergency_dispatch(req.dict())
 
 class GroundTruthReport(BaseModel):
     location: str

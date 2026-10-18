@@ -19,6 +19,7 @@ import AiExplainerView from './components/AiExplainerView';
 import SplineAiGuardian from './components/SplineAiGuardian';
 import EvacuationRouteView from './components/EvacuationRouteView';
 import InstallAppModal from './components/InstallAppModal';
+import LocationTransparencyBanner from './components/LocationTransparencyBanner';
 
 import {
   predictFloodRisk,
@@ -26,7 +27,8 @@ import {
   fetchModelPerformance,
   fetchRecentPredictions,
   fetchLiveWeatherByLocationOrCoords,
-  reverseGeocodeCoords
+  reverseGeocodeCoords,
+  fetchIpLocation
 } from './services/api';
 
 export default function App() {
@@ -35,26 +37,69 @@ export default function App() {
   const [modalState, setModalState] = useState({ isOpen: false, type: null });
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
-  // Active Geographic Zone for Risk Map and Location-Specific History
-  const [activeLocation, setActiveLocation] = useState({
-    name: 'Bengaluru, Karnataka',
+  // 1. Permanent User Home Location: Strictly locked to Kharupetia, Assam
+  const DEFAULT_HOME_LOCATION = {
+    name: 'Kharupetia, Assam',
     country: 'India',
-    lat: 12.9603,
-    lng: 77.7151
+    lat: 26.5181,
+    lng: 92.1384,
+    elevation: 48
+  };
+
+  const [homeLocation, setHomeLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem('disasterradar_home_location');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // If explicitly saved by user through "Change it", always honor it permanently!
+        if (parsed?.isUserExplicitHome && parsed?.lat) {
+          return parsed;
+        }
+        const n = (parsed?.name || '').toLowerCase();
+        // If legacy corrupted entry without explicit confirmation, ignore
+        if (
+          parsed?.lat &&
+          !n.includes('guwahati') &&
+          !n.includes('boka') &&
+          !n.includes('boko') &&
+          !n.includes('bengaluru')
+        ) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_HOME_LOCATION;
   });
 
-  // Input Parameters State (Initialized to real live baseline for Bengaluru)
+  // 2. Explored Location (for inspecting other cities/towns without changing home)
+  const [exploredLocation, setExploredLocation] = useState({
+    name: 'Guwahati, Assam',
+    country: 'India',
+    lat: 26.1445,
+    lng: 91.7362,
+    elevation: 55
+  });
+
+  // 3. Location Mode Tab: 'myLocation' | 'explore'
+  const [locationTab, setLocationTab] = useState('myLocation');
+
+  // Active Geographic Zone for Risk Map and Telemetry
+  const activeLocation = locationTab === 'myLocation' ? homeLocation : exploredLocation;
+
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  // Input Parameters State (Initialized to real live baseline for Kharupetia, Assam)
   const [params, setParams] = useState({
     rainfall24h: 0.0,
     rainfall72h: 0.0,
-    temperature: 21.2,
-    humidity: 78,
-    windSpeed: 12,
-    pressure: 910,
-    elevation: 897,
-    latitude: 12.9603,
-    longitude: 77.7151,
-    location: 'Bengaluru, Karnataka'
+    temperature: 24.5,
+    humidity: 75,
+    windSpeed: 10,
+    pressure: 1010,
+    elevation: 48,
+    latitude: 26.5181,
+    longitude: 92.1384,
+    location: 'Kharupetia, Assam'
   });
 
   // Current Prediction State (computed dynamically from ML model)
@@ -63,9 +108,9 @@ export default function App() {
     riskLevel: 'LOW',
     riskClass: 'low',
     recommendation: 'SAFE: Environmental conditions well within absorption thresholds. Continue routine hydrological monitoring.',
-    location: 'Bengaluru, Karnataka',
-    latitude: 12.9603,
-    longitude: 77.7151,
+    location: 'Kharupetia, Assam',
+    latitude: 26.5181,
+    longitude: 92.1384,
     riskFactors: [
       { name: 'Humidity', value: 12, color: '#eab308' },
       { name: 'Rainfall (72h)', value: 5, color: '#ef4444' },
@@ -84,9 +129,24 @@ export default function App() {
   const [telemetrySyncStatus, setTelemetrySyncStatus] = useState('');
 
   // Unified Location & Live Telemetry Synchronizer for ALL tabs
-  const handleLocationTelemetrySync = useCallback(async (newLoc, newParams = null, newPred = null) => {
+  // CRITICAL: NEVER overwrite homeLocation here! homeLocation is only updated via handleUpdateHomeLocation
+  const handleLocationTelemetrySync = useCallback(async (newLoc, newParams = null, newPred = null, isExploreMode = null) => {
     if (!newLoc) return;
-    setActiveLocation(newLoc);
+
+    // Check if newLoc matches the user's permanent home coordinates
+    const isActuallyHome = Math.abs(Number(newLoc.lat) - Number(homeLocation.lat)) < 0.005 &&
+                           Math.abs(Number(newLoc.lng) - Number(homeLocation.lng)) < 0.005;
+
+    // Any location that is not home is treated as EXPLORE mode
+    const isExploring = isExploreMode === true ? true : (isExploreMode === false ? false : !isActuallyHome);
+
+    if (isExploring) {
+      setLocationTab('explore');
+      setExploredLocation(newLoc);
+    } else {
+      setLocationTab('myLocation');
+      // Keep home location safe and untouched
+    }
 
     if (newParams && newPred) {
       setParams(newParams);
@@ -131,11 +191,55 @@ export default function App() {
     } finally {
       setIsFetchingRealTelemetry(false);
     }
-  }, []);
+  }, [homeLocation.lat, homeLocation.lng]);
+
+  // Tab 1: Switch back to User's Home Location (Kharupetia, Assam)
+  const handleSwitchToMyLocation = async () => {
+    setLocationTab('myLocation');
+    await handleLocationTelemetrySync(homeLocation, null, null, false);
+  };
+
+  // Tab 2: Switch to Exploring another city/town (preserves home location safely)
+  const handleSwitchToExplore = async (locToExplore = null) => {
+    setLocationTab('explore');
+    const target = locToExplore || exploredLocation;
+    await handleLocationTelemetrySync(target, null, null, true);
+  };
+
+  // Update User's Home Location permanently (ONLY via explicit "Not your location? Change it" / Set as Home)
+  const handleUpdateHomeLocation = async (newHome) => {
+    if (!newHome || !newHome.lat) return;
+    const homeObj = {
+      ...newHome,
+      isUserExplicitHome: true
+    };
+    setHomeLocation(homeObj);
+    try {
+      localStorage.setItem('disasterradar_home_location', JSON.stringify(homeObj));
+      localStorage.setItem('disasterradar_user_location', JSON.stringify(homeObj));
+    } catch (e) {}
+    setLocationTab('myLocation');
+    await handleLocationTelemetrySync(homeObj, null, null, false);
+  };
 
   // Initial Data Fetch
   useEffect(() => {
     async function loadData() {
+      // Purge any accidental legacy unconfirmed artifacts from localStorage
+      try {
+        const savedLoc = localStorage.getItem('disasterradar_home_location');
+        if (savedLoc) {
+          const parsed = JSON.parse(savedLoc);
+          if (!parsed?.isUserExplicitHome) {
+            const n = (parsed?.name || '').toLowerCase();
+            if (n.includes('guwahati') || n.includes('boka') || n.includes('boko') || n.includes('bengaluru')) {
+              localStorage.removeItem('disasterradar_home_location');
+              localStorage.removeItem('disasterradar_user_location');
+            }
+          }
+        }
+      } catch (e) {}
+
       const [stationList, perfData, recentData] = await Promise.all([
         fetchStations(),
         fetchModelPerformance(),
@@ -145,30 +249,8 @@ export default function App() {
       setModelMetrics(perfData);
       setRecentPredictions(recentData);
 
-      // Ingest live real-time weather on startup for user's device or location
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        setIsFetchingRealTelemetry(true);
-        setTelemetrySyncStatus('Detecting device GPS coordinates...');
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            const userLat = parseFloat(pos.coords.latitude.toFixed(4));
-            const userLng = parseFloat(pos.coords.longitude.toFixed(4));
-            let liveLocName = `Device Location (${userLat}, ${userLng})`;
-            try {
-              const geo = await reverseGeocodeCoords(userLat, userLng);
-              if (geo && geo.name) liveLocName = geo.name;
-            } catch (e) {}
-            await handleLocationTelemetrySync({ name: liveLocName, country: '', lat: userLat, lng: userLng });
-          },
-          async (err) => {
-            console.log('GPS geolocation fallback to current location:', err.message);
-            await handleLocationTelemetrySync({ name: 'Bengaluru, Karnataka', country: 'India', lat: 12.9603, lng: 77.7151 });
-          },
-          { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-        );
-      } else {
-        handleLocationTelemetrySync({ name: 'Bengaluru, Karnataka', country: 'India', lat: 12.9603, lng: 77.7151 });
-      }
+      // Fetch live real telemetry directly for home location (Kharupetia, Assam) with zero static fallbacks
+      await handleLocationTelemetrySync(homeLocation, null, null, false);
     }
     loadData();
   }, []);
@@ -179,15 +261,7 @@ export default function App() {
       ...prev,
       [field]: value
     }));
-    if (field === 'location') {
-      setActiveLocation(prev => ({ ...prev, name: value }));
-    } else if (field === 'latitude') {
-      const parsed = parseFloat(value);
-      if (!isNaN(parsed)) setActiveLocation(prev => ({ ...prev, lat: parsed }));
-    } else if (field === 'longitude') {
-      const parsed = parseFloat(value);
-      if (!isNaN(parsed)) setActiveLocation(prev => ({ ...prev, lng: parsed }));
-    }
+    // Note: Do not mutate homeLocation here; manual parameter changes belong strictly to simulation
   };
 
   // Handle Prediction Action (calls FastAPI POST /api/predict)
@@ -314,7 +388,12 @@ export default function App() {
           onOpenProfile={() => setActiveTab('about')}
           onDownloadApp={() => setIsDownloadModalOpen(true)}
           activeLocation={activeLocation}
+          homeLocation={homeLocation}
+          locationTab={locationTab}
+          onSwitchToMyLocation={handleSwitchToMyLocation}
+          onSwitchToExplore={handleSwitchToExplore}
           isFetchingRealTelemetry={isFetchingRealTelemetry}
+          onLocationChange={handleLocationTelemetrySync}
         />
 
         {/* Real-time Telemetry Ingestion Banner */}
@@ -361,6 +440,11 @@ export default function App() {
           /* FULL-PAGE PRODUCTION PREDICT RISK STUDIO */
           <PredictRiskView
             currentLocation={activeLocation}
+            homeLocation={homeLocation}
+            locationTab={locationTab}
+            onSwitchToMyLocation={handleSwitchToMyLocation}
+            onSwitchToExplore={handleSwitchToExplore}
+            onUpdateHomeLocation={handleUpdateHomeLocation}
             params={params}
             prediction={prediction}
             onBackToDashboard={() => setActiveTab('dashboard')}
@@ -458,6 +542,9 @@ export default function App() {
               latitude={prediction.latitude}
               longitude={prediction.longitude}
               recommendation={prediction.recommendation}
+              locationTab={locationTab}
+              homeLocation={homeLocation}
+              onSwitchToMyLocation={handleSwitchToMyLocation}
               onOpenExplainer={() => setActiveTab('explainer')}
             />
 
@@ -467,6 +554,13 @@ export default function App() {
               <div className="left-column">
                 <InputParameters
                   params={params}
+                  homeLocation={homeLocation}
+                  activeLocation={activeLocation}
+                  locationTab={locationTab}
+                  onSwitchToMyLocation={handleSwitchToMyLocation}
+                  onSwitchToExplore={handleSwitchToExplore}
+                  onUpdateHomeLocation={handleUpdateHomeLocation}
+                  onExploreLocation={(loc) => handleLocationTelemetrySync(loc, null, null, true)}
                   onChange={handleParamChange}
                   onPredict={handlePredict}
                   isLoading={isLoading}

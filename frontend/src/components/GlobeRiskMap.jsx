@@ -21,8 +21,6 @@ export default function GlobeRiskMap({
   onLocationChange,
   onOpenHistoryModal
 }) {
-  // View mode: '3d-globe' or '2d-gis'
-  const [viewMode, setViewMode] = useState('3d-globe');
 
   // Search & Navigation States
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,17 +110,6 @@ export default function GlobeRiskMap({
     pulseVal: 0
   });
 
-  // References for 2D GIS Leaflet Map
-  const leafletContainerRef = useRef(null);
-  const leafletMapRef = useRef(null);
-  const [gisData, setGisData] = useState(null);
-  const [activeLayers, setActiveLayers] = useState({
-    zones: true,
-    railway: true,
-    roads: true,
-    hotspots: true,
-    radar: true
-  });
   const [radarConfig, setRadarConfig] = useState(null);
   const [groundTruthState, setGroundTruthState] = useState({ verified: false, condition: null });
 
@@ -142,7 +129,7 @@ export default function GlobeRiskMap({
   // 1. THREE.JS 3D WORLD GLOBE ENGINE (ULTRA 3D DIMENSIONAL REALISM)
   // ==========================================================================
   useEffect(() => {
-    if (viewMode !== '3d-globe' || !globeContainerRef.current) return;
+    if (!globeContainerRef.current) return;
 
     const container = globeContainerRef.current;
     const width = container.clientWidth || 800;
@@ -641,7 +628,7 @@ export default function GlobeRiskMap({
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
     };
-  }, [viewMode, autoRotate]);
+  }, [autoRotate]);
 
   // Helper: Draw Rich Biome Continents (Foliage, highlands, deserts, polar ice caps)
   function drawRichContinents(ctx, w, h) {
@@ -1114,155 +1101,7 @@ export default function GlobeRiskMap({
     );
   };
 
-  // ==========================================================================
-  // 3. 2D CARTOGRAPHIC GIS ATLAS (MATCHING SCREENSHOT)
-  // ==========================================================================
-  useEffect(() => {
-    if (viewMode !== '2d-gis' || !leafletContainerRef.current) return;
 
-    // Fetch GIS Data for Mira Bhayandar
-    async function loadGIS() {
-      const data = await fetchMiraBhayandarGIS();
-      if (data) setGisData(data);
-    }
-    loadGIS();
-
-    // Initialize Leaflet Map
-    const map = L.map(leafletContainerRef.current, {
-      center: [targetLocation.lat, targetLocation.lng],
-      zoom: 13,
-      zoomControl: false,
-      attributionControl: false
-    });
-
-    // High-Resolution Cartographic Voyager Tiles with global zoom level support
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd'
-    }).addTo(map);
-
-    // Click on 2D map to inspect coordinates & query live telemetry
-    map.on('click', async (e) => {
-      const { lat, lng } = e.latlng;
-      let placeName = `Point (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
-      let countryName = '';
-      try {
-        const revRes = await reverseGeocodeCoords(lat, lng);
-        if (revRes && revRes.name) {
-          placeName = revRes.name;
-          countryName = revRes.country || '';
-        }
-      } catch (err) {}
-      handleNavigateToLocationRef.current?.({
-        name: placeName,
-        country: countryName,
-        lat: parseFloat(lat.toFixed(4)),
-        lng: parseFloat(lng.toFixed(4))
-      });
-    });
-
-    leafletMapRef.current = map;
-
-    return () => {
-      map.remove();
-      leafletMapRef.current = null;
-    };
-  }, [viewMode, targetLocation.lat, targetLocation.lng]);
-
-  // Render Leaflet GIS Layers when data or toggles change
-  useEffect(() => {
-    const map = leafletMapRef.current;
-    if (!map || viewMode !== '2d-gis') return;
-
-    const layerGroup = L.layerGroup().addTo(map);
-
-    // If target is Mira Bhayandar, render full GIS polygons
-    const isMira = Math.abs(targetLocation.lat - 19.2952) < 0.1 && Math.abs(targetLocation.lng - 72.8544) < 0.1;
-    if (isMira) {
-      // Risk Zones
-      if (activeLayers.zones) {
-        const defaultZones = [
-          {
-            name: "Bhayandar Creek Basin & Station Lowlands",
-            risk: "Very High",
-            color: "#f44336",
-            coords: [[19.310, 72.845], [19.318, 72.850], [19.322, 72.858], [19.315, 72.868], [19.302, 72.862], [19.298, 72.852], [19.303, 72.846]]
-          },
-          {
-            name: "Navghar & Penkarpada Inundation Pocket",
-            risk: "Very High",
-            color: "#f44336",
-            coords: [[19.295, 72.860], [19.301, 72.868], [19.298, 72.876], [19.288, 72.872], [19.289, 72.862]]
-          },
-          {
-            name: "Mira Road Central Urban Grid",
-            risk: "High",
-            color: "#ff9800",
-            coords: [[19.285, 72.850], [19.295, 72.852], [19.302, 72.862], [19.295, 72.875], [19.282, 72.882], [19.275, 72.868], [19.278, 72.855]]
-          },
-          {
-            name: "Rai-Morva & Murdha Agricultural Plain",
-            risk: "Moderate",
-            color: "#ffeb3b",
-            coords: [[19.300, 72.795], [19.315, 72.815], [19.320, 72.840], [19.305, 72.845], [19.295, 72.825], [19.285, 72.810]]
-          }
-        ];
-
-        defaultZones.forEach(z => {
-          L.polygon(z.coords, {
-            color: '#ffffff',
-            weight: 1.5,
-            fillColor: z.color,
-            fillOpacity: 0.65
-          }).bindTooltip(`<strong>${z.name}</strong><br/>Risk: ${z.risk}`).addTo(layerGroup);
-        });
-      }
-
-      // Railway
-      if (activeLayers.railway) {
-        L.polyline([[19.325, 72.852], [19.314, 72.853], [19.298, 72.856], [19.282, 72.858], [19.265, 72.860]], {
-          color: '#1d4ed8',
-          weight: 4
-        }).addTo(layerGroup);
-      }
-
-      // Roads
-      if (activeLayers.roads) {
-        const roads = [
-          [[19.262, 72.870], [19.275, 72.873], [19.290, 72.880], [19.305, 72.892]],
-          [[19.278, 72.785], [19.295, 72.815], [19.305, 72.835], [19.312, 72.850]],
-          [[19.290, 72.850], [19.292, 72.865], [19.294, 72.880]]
-        ];
-        roads.forEach(r => L.polyline(r, { color: '#0f172a', weight: 2 }).addTo(layerGroup));
-      }
-    } else {
-      // Generic pin for any global coordinates
-      const targetMarker = L.circleMarker([targetLocation.lat, targetLocation.lng], {
-        radius: 9,
-        fillColor: prediction.probability > 70 ? '#ef4444' : (prediction.probability > 40 ? '#f59e0b' : '#10b981'),
-        color: '#ffffff',
-        weight: 2,
-        fillOpacity: 0.9
-      }).addTo(layerGroup);
-
-      targetMarker.bindPopup(`
-        <strong>${targetLocation.name}</strong><br/>
-        Risk: ${prediction.riskLevel} (${prediction.probability}%)<br/>
-        Elev: ${telemetry.elevation}m | 24h Rain: ${telemetry.rainfall24h}mm
-      `).openPopup();
-    }
-
-    // Live 500m Doppler Weather Radar Layer (Option B)
-    if (activeLayers.radar && radarConfig?.tile_url) {
-      L.tileLayer(radarConfig.tile_url, {
-        opacity: 0.65,
-        zIndex: 500,
-        maxZoom: 18
-      }).addTo(layerGroup);
-    }
-
-    return () => layerGroup.remove();
-  }, [viewMode, activeLayers, targetLocation, prediction, telemetry, radarConfig]);
 
   // Load into Main Predictor Dashboard
   const handleAnalyzeInPredictor = () => {
@@ -1301,67 +1140,13 @@ export default function GlobeRiskMap({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <h2 className="globe-main-title">
-                {viewMode === '3d-globe' ? '3D World Globe Flood Radar' : '2D Topographic GIS Atlas'}
+                3D World Globe Flood Radar
               </h2>
-              {viewMode === '2d-gis' && (
-                <span style={{
-                  fontSize: '0.66rem',
-                  background: 'rgba(245, 158, 11, 0.15)',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
-                  color: '#fbbf24',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  fontWeight: 800,
-                  letterSpacing: '0.4px'
-                }}>
-                  🚧 IN DEVELOPMENT
-                </span>
-              )}
             </div>
             <div className="globe-sub-title">
-              {viewMode === '3d-globe'
-                ? 'Planetary Geospatial Telemetry Ingestion & Real-Time AI Risk Inference'
-                : 'Cartographic Ward-Level Choropleth & Overpass Hydro-Corridors (Development Preview)'}
+              Planetary Geospatial Telemetry Ingestion & Real-Time AI Risk Inference
             </div>
           </div>
-        </div>
-
-        {/* View Switcher Toggle (3D Globe ⟷ 2D GIS Atlas) */}
-        <div className="globe-view-toggle">
-          <button
-            className={`view-toggle-btn ${viewMode === '3d-globe' ? 'active' : ''}`}
-            onClick={() => setViewMode('3d-globe')}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
-            <span>3D World Globe</span>
-          </button>
-          <button
-            className={`view-toggle-btn ${viewMode === '2d-gis' ? 'active' : ''}`}
-            onClick={() => setViewMode('2d-gis')}
-            style={{ position: 'relative' }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-              <line x1="8" y1="2" x2="8" y2="18" />
-              <line x1="16" y1="6" x2="16" y2="22" />
-            </svg>
-            <span>2D GIS Atlas</span>
-            <span style={{
-              fontSize: '0.58rem',
-              background: '#f59e0b',
-              color: '#0f172a',
-              fontWeight: 800,
-              padding: '1px 5px',
-              borderRadius: '4px',
-              marginLeft: '4px'
-            }}>
-              DEV
-            </span>
-          </button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1504,164 +1289,24 @@ export default function GlobeRiskMap({
 
       {/* 3. MAIN MAP & HUD VIEWPORT CONTAINER */}
       <div className="globe-viewport-wrapper">
-        {/* Mode A: 3D Three.js Interactive Earth Globe */}
-        {viewMode === '3d-globe' && (
-          <div className="globe-canvas-frame">
-            <div ref={globeContainerRef} className="three-globe-container" />
+        {/* Interactive Earth Globe */}
+        <div className="globe-canvas-frame">
+          <div ref={globeContainerRef} className="three-globe-container" />
 
-            {/* Orbit & Auto-spin controls on 3D Globe */}
-            <div className="globe-floating-controls">
-              <button
-                className={`control-btn ${autoRotate ? 'active' : ''}`}
-                onClick={() => setAutoRotate(!autoRotate)}
-                title="Toggle Auto Orbit Rotation"
-              >
-                {autoRotate ? '⏸ Pause Spin' : '▶ Auto Spin'}
-              </button>
-              <div className="interaction-hint">
-                🖱️ Drag to rotate • Scroll to zoom
-              </div>
+          {/* Orbit & Auto-spin controls on 3D Globe */}
+          <div className="globe-floating-controls">
+            <button
+              className={`control-btn ${autoRotate ? 'active' : ''}`}
+              onClick={() => setAutoRotate(!autoRotate)}
+              title="Toggle Auto Orbit Rotation"
+            >
+              {autoRotate ? '⏸ Pause Spin' : '▶ Auto Spin'}
+            </button>
+            <div className="interaction-hint">
+              🖱️ Drag to rotate • Scroll to zoom
             </div>
           </div>
-        )}
-
-        {/* Mode B: 2D Topographic Cartographic GIS Atlas */}
-        {viewMode === '2d-gis' && (
-          <div className="gis-canvas-container" style={{ position: 'relative' }}>
-            {/* Development Phase Floating Indicator */}
-            <div style={{
-              position: 'absolute',
-              top: '12px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 1000,
-              background: 'rgba(15, 23, 42, 0.94)',
-              border: '1px solid rgba(245, 158, 11, 0.5)',
-              borderRadius: '20px',
-              padding: '6px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-              backdropFilter: 'blur(8px)',
-              fontSize: '0.74rem',
-              color: '#f8fafc'
-            }}>
-              <span style={{ fontSize: '0.86rem' }}>🚧</span>
-              <span style={{ fontWeight: 800, color: '#f59e0b', letterSpacing: '0.3px' }}>DEVELOPMENT PHASE:</span>
-              <span style={{ color: '#cbd5e1' }}>2D Cartographic Vector Atlas & Overpass Hydro-Corridors are currently in active calibration.</span>
-            </div>
-
-            <div ref={leafletContainerRef} className="gis-leaflet-container" />
-
-            {/* GIS Layer Toggles */}
-            <div className="gis-layer-toggles-floating">
-              <label className="toggle-label" style={{ color: '#38bdf8', fontWeight: 700 }}>
-                <input
-                  type="checkbox"
-                  checked={activeLayers.radar}
-                  onChange={(e) => setActiveLayers((p) => ({ ...p, radar: e.target.checked }))}
-                />
-                <span>📡 Live Doppler Radar (500m)</span>
-              </label>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={activeLayers.zones}
-                  onChange={(e) => setActiveLayers((p) => ({ ...p, zones: e.target.checked }))}
-                />
-                <span>Risk Zones</span>
-              </label>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={activeLayers.railway}
-                  onChange={(e) => setActiveLayers((p) => ({ ...p, railway: e.target.checked }))}
-                />
-                <span>Railway</span>
-              </label>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={activeLayers.roads}
-                  onChange={(e) => setActiveLayers((p) => ({ ...p, roads: e.target.checked }))}
-                />
-                <span>Roads</span>
-              </label>
-            </div>
-
-            {/* Compass Rose */}
-            <div className="gis-compass-rose">
-              <svg width="60" height="60" viewBox="0 0 100 100">
-                <polygon points="50,10 56,44 50,42" fill="#0f172a" />
-                <polygon points="50,10 44,44 50,42" fill="#cbd5e1" />
-                <polygon points="50,90 56,56 50,58" fill="#0f172a" />
-                <polygon points="50,90 44,56 50,58" fill="#cbd5e1" />
-                <polygon points="10,50 44,56 42,50" fill="#cbd5e1" />
-                <polygon points="10,50 44,44 42,50" fill="#0f172a" />
-                <polygon points="90,50 56,56 58,50" fill="#0f172a" />
-                <polygon points="90,50 56,44 58,50" fill="#cbd5e1" />
-                <circle cx="50" cy="50" r="4" fill="#0f172a" />
-                <text x="50" y="8" fontSize="12" fontWeight="bold" textAnchor="middle" fill="#0f172a">N</text>
-                <text x="50" y="99" fontSize="11" fontWeight="bold" textAnchor="middle" fill="#0f172a">S</text>
-                <text x="3" y="54" fontSize="11" fontWeight="bold" textAnchor="middle" fill="#0f172a">W</text>
-                <text x="97" y="54" fontSize="11" fontWeight="bold" textAnchor="middle" fill="#0f172a">E</text>
-              </svg>
-            </div>
-
-            {/* Cartographic Legend (Matching Reference Image) */}
-            <div className="gis-bottom-legend-panel">
-              <div className="legend-title-col">
-                <h3 className="legend-main-title">FLOOD RISK</h3>
-                <div className="legend-place-name">{targetLocation.name}</div>
-                <div className="legend-date">Date: Real-Time Stream</div>
-              </div>
-
-              <div className="legend-symbols-col">
-                <div className="sym-row">
-                  <span className="sym-boundary-box" />
-                  <span className="sym-label">City Boundary</span>
-                </div>
-                <div className="sym-row">
-                  <span className="sym-road-line" />
-                  <span className="sym-label">Road Network</span>
-                </div>
-                <div className="sym-row">
-                  <span className="sym-rail-line" />
-                  <span className="sym-label">Railway Corridor</span>
-                </div>
-              </div>
-
-              <div className="legend-risk-col">
-                <div className="sym-label" style={{ fontWeight: 700, marginBottom: '6px' }}>Flood Risk Tiers</div>
-                <div className="risk-grid">
-                  <div className="risk-item"><span className="color-box" style={{ background: '#1b5e20' }} /> Very Low</div>
-                  <div className="risk-item"><span className="color-box" style={{ background: '#4caf50' }} /> Low</div>
-                  <div className="risk-item"><span className="color-box" style={{ background: '#ffeb3b' }} /> Moderate</div>
-                  <div className="risk-item"><span className="color-box" style={{ background: '#ff9800' }} /> High</div>
-                  <div className="risk-item"><span className="color-box" style={{ background: '#f44336' }} /> Very High</div>
-                </div>
-              </div>
-
-              {/* Doppler Radar Scale */}
-              <div className="legend-radar-col" style={{ borderLeft: '1px solid #cbd5e1', paddingLeft: '10px' }}>
-                <div className="sym-label" style={{ fontWeight: 700, marginBottom: '4px', color: '#0284c7' }}>📡 Doppler Radar (500m)</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.66rem', color: '#475569' }}>
-                  <span>Light</span>
-                  <div style={{ height: '7px', width: '56px', borderRadius: '3px', background: 'linear-gradient(90deg, #10b981, #38bdf8, #eab308, #ef4444, #a855f7)' }} />
-                  <span>Heavy</span>
-                </div>
-                <div style={{ fontSize: '0.6rem', color: '#64748b', marginTop: '2px' }}>RainViewer Live Echoes</div>
-              </div>
-
-              <div className="legend-metadata-col">
-                <div>Coordinate System: GCS WGS 1984</div>
-                <div>Datum: WGS 1984</div>
-                <div>Data Source: Open-Meteo & Copernicus DEM</div>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* 4. OVERLAY HUD: TELEMETRY STREAM & ML PREDICTION CARDS */}
         <div className="globe-hud-overlay">

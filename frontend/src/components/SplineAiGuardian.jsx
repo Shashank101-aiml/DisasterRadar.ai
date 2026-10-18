@@ -215,11 +215,11 @@ export default function SplineAiGuardian({
 
     // 8. Animation Loop
     let animId;
-    let clock = new THREE.Clock();
+    const startTime = performance.now();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      const elapsed = (performance.now() - startTime) * 0.001;
 
       // Subtle Breathing / Idle Levitation
       guardianGroup.position.y = Math.sin(elapsed * 1.8) * 0.04 - 0.15;

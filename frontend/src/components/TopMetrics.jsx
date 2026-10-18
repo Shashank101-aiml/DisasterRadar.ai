@@ -7,7 +7,11 @@ export default function TopMetrics({
   latitude,
   longitude,
   recommendation,
-  onOpenExplainer
+  locationTab = 'myLocation',
+  homeLocation,
+  onSwitchToMyLocation,
+  onOpenExplainer,
+  onOpenLocationModal
 }) {
   // Compute SVG Donut Progress Circle offset
   const radius = 32;
@@ -175,11 +179,40 @@ export default function TopMetrics({
       >
         <div className="metric-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8', fontWeight: 700 }}>
-            Monitored Sector
+            {locationTab === 'explore' ? 'Exploring Other Sector' : 'Monitored Home Sector'}
           </span>
-          <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
-            LIVE GPS
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {locationTab === 'explore' && onSwitchToMyLocation && (
+              <button
+                type="button"
+                onClick={onSwitchToMyLocation}
+                style={{
+                  background: 'rgba(16, 185, 129, 0.18)',
+                  border: '1px solid #10b981',
+                  color: '#34d399',
+                  padding: '2px 7px',
+                  borderRadius: '4px',
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+                title={`Back to Home Location: ${homeLocation?.name || 'Kharupetia'}`}
+              >
+                ↩️ Back Home
+              </button>
+            )}
+            <span style={{
+              fontSize: '0.65rem',
+              background: locationTab === 'explore' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(16, 185, 129, 0.12)',
+              color: locationTab === 'explore' ? '#38bdf8' : '#10b981',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              border: `1px solid ${locationTab === 'explore' ? 'rgba(56, 189, 248, 0.3)' : 'rgba(16, 185, 129, 0.25)'}`,
+              fontWeight: 700
+            }}>
+              {locationTab === 'explore' ? 'EXPLORING' : 'HOME (LIVE)'}
+            </span>
+          </div>
         </div>
         <div className="metric-body" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
           <div
