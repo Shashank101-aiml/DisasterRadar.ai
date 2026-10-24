@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { geocodeLocation, reverseGeocodeCoords } from '../services/api';
 
 export default function Header({
   onToggleSidebar,
@@ -6,11 +7,21 @@ export default function Header({
   onOpenProfile,
   onDownloadApp,
   activeLocation,
-  isFetchingRealTelemetry
+  homeLocation,
+  locationTab = 'myLocation',
+  onSwitchToMyLocation,
+  onSwitchToExplore,
+  isFetchingRealTelemetry,
+  onLocationChange
 }) {
   const [time, setTime] = useState('');
   const [date, setDate] = useState('');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [showLocPicker, setShowLocPicker] = useState(false);
+  const [locInput, setLocInput] = useState('');
+  const [locStatus, setLocStatus] = useState('');
+  const [isLocLoading, setIsLocLoading] = useState(false);
+  const locPickerRef = useRef(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -32,6 +43,111 @@ export default function Header({
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Close picker on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (locPickerRef.current && !locPickerRef.current.contains(e.target)) {
+        setShowLocPicker(false);
+      }
+    };
+    if (showLocPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showLocPicker]);
+
+  const handleApplyLocation = async (locObj) => {
+    if (!onLocationChange) return;
+    setIsLocLoading(true);
+    setLocStatus(`Syncing ${locObj.name}...`);
+    try {
+      await onLocationChange(locObj);
+      setShowLocPicker(false);
+      setLocInput('');
+      setLocStatus('');
+    } catch (e) {
+      setLocStatus('Sync failed');
+    } finally {
+      setIsLocLoading(false);
+    }
+  };
+
+  const handleSearchSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!locInput.trim()) return;
+    setIsLocLoading(true);
+    setLocStatus('Searching location...');
+    try {
+      const results = await geocodeLocation(locInput.trim());
+      if (results && results.length > 0) {
+        const top = results[0];
+        await handleApplyLocation({
+          name: top.name,
+          country: top.country || '',
+          lat: top.lat,
+          lng: top.lng
+        });
+      } else {
+        setLocStatus('Location not found. Try another city.');
+      }
+    } catch (err) {
+      setLocStatus('Search error');
+    } finally {
+      setIsLocLoading(false);
+    }
+  };
+
+  const handleDetectGps = () => {
+    if (!navigator.geolocation) {
+      setLocStatus('GPS not supported');
+      return;
+    }
+    setIsLocLoading(true);
+    setLocStatus('Acquiring device GPS...');
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = parseFloat(pos.coords.latitude.toFixed(4));
+        const lng = parseFloat(pos.coords.longitude.toFixed(4));
+        let placeName = `Device Location (${lat}, ${lng})`;
+        try {
+          const rev = await reverseGeocodeCoords(lat, lng);
+          if (rev && rev.name) placeName = rev.name;
+        } catch (e) {}
+        await handleApplyLocation({ name: placeName, country: '', lat, lng });
+      },
+      async (err) => {
+        setLocStatus('GPS failed, trying IP...');
+        try {
+          const ipLoc = await fetchIpLocation();
+          if (ipLoc) {
+            await handleApplyLocation(ipLoc);
+            return;
+          }
+        } catch (e) {}
+        setLocStatus('Unable to acquire GPS');
+        setIsLocLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+    );
+  };
+
+  const handleDetectIp = async () => {
+    setIsLocLoading(true);
+    setLocStatus('Detecting network IP location...');
+    try {
+      const ipLoc = await fetchIpLocation();
+      if (ipLoc) {
+        await handleApplyLocation(ipLoc);
+        return;
+      }
+      setLocStatus('IP detection failed');
+    } catch (e) {
+      setLocStatus('Network error');
+    } finally {
+      setIsLocLoading(false);
+    }
+  };
 
   return (
     <header className="top-header" style={{ background: 'rgba(8, 12, 22, 0.85)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(56, 189, 248, 0.15)' }}>
@@ -74,34 +190,91 @@ export default function Header({
       </div>
 
       <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-        {/* Active Target Real-Time Location Pill */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: '1px solid rgba(56, 189, 248, 0.25)',
-          borderRadius: '20px',
-          padding: '4px 12px',
-          fontSize: '0.74rem'
-        }}>
-          <span style={{ color: '#10b981', display: 'flex', alignItems: 'center' }}>📍</span>
-          <span style={{ fontWeight: 700, color: '#f8fafc' }}>
-            {activeLocation?.name?.split(',')[0] || 'Live Location'}
-          </span>
-          {activeLocation?.lat !== undefined && (
-            <span style={{ fontSize: '0.68rem', color: '#38bdf8', fontFamily: 'JetBrains Mono, monospace' }}>
-              ({Number(activeLocation.lat).toFixed(2)}°, {Number(activeLocation.lng).toFixed(2)}°)
-            </span>
+        {/* Sleek 2-Tab Location Switcher: My Location vs Explore Other Location */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'rgba(15, 23, 42, 0.9)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            borderRadius: '22px',
+            padding: '3px',
+            gap: '4px'
+          }}
+        >
+          <button
+            type="button"
+            onClick={onSwitchToMyLocation}
+            style={{
+              background: locationTab === 'myLocation' ? '#0284c7' : 'transparent',
+              color: locationTab === 'myLocation' ? '#ffffff' : '#94a3b8',
+              border: 'none',
+              borderRadius: '18px',
+              padding: '4px 12px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              boxShadow: locationTab === 'myLocation' ? '0 2px 8px rgba(2, 132, 199, 0.4)' : 'none',
+              transition: 'all 0.15s'
+            }}
+            title={`Your Home Location: ${homeLocation?.name || 'Kharupetia, Assam'}`}
+          >
+            <span>🏠</span>
+            <span>My Location ({homeLocation?.name?.split(',')[0] || 'Kharupetia'})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSwitchToExplore && onSwitchToExplore()}
+            style={{
+              background: locationTab === 'explore' ? '#0284c7' : 'transparent',
+              color: locationTab === 'explore' ? '#ffffff' : '#94a3b8',
+              border: 'none',
+              borderRadius: '18px',
+              padding: '4px 12px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              boxShadow: locationTab === 'explore' ? '0 2px 8px rgba(2, 132, 199, 0.4)' : 'none',
+              transition: 'all 0.15s'
+            }}
+            title="Inspect other cities/regions without altering your home location"
+          >
+            <span>🔍</span>
+            <span>{locationTab === 'explore' ? `Exploring (${activeLocation?.name?.split(',')[0]})` : 'Other Location'}</span>
+          </button>
+
+          {locationTab === 'explore' && onSwitchToMyLocation && (
+            <button
+              type="button"
+              onClick={onSwitchToMyLocation}
+              style={{
+                background: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid #10b981',
+                color: '#34d399',
+                borderRadius: '14px',
+                padding: '3px 8px',
+                fontSize: '0.66rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginLeft: '2px'
+              }}
+              title="Return to your Home Location"
+            >
+              ↩️ Home
+            </button>
           )}
-          {isFetchingRealTelemetry ? (
-            <span style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span className="live-pulsing-dot" style={{ width: '6px', height: '6px', background: '#f59e0b' }} />
-              Syncing Real Data...
-            </span>
-          ) : (
-            <span style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 600 }}>
-              • Real-Time Active
+
+          {isFetchingRealTelemetry && (
+            <span style={{ fontSize: '0.66rem', color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', padding: '0 6px' }}>
+              <span className="live-pulsing-dot" style={{ width: '5px', height: '5px', background: '#f59e0b' }} />
+              Live...
             </span>
           )}
         </div>

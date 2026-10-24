@@ -1,8 +1,20 @@
 import React, { useState } from 'react';
-import { fetchLiveWeatherByLocationOrCoords, reverseGeocodeCoords, submitGroundTruthReport } from '../services/api';
+import {
+  fetchLiveWeatherByLocationOrCoords,
+  reverseGeocodeCoords,
+  submitGroundTruthReport,
+  geocodeLocation
+} from '../services/api';
 
 export default function InputParameters({
   params,
+  homeLocation,
+  activeLocation,
+  locationTab = 'myLocation',
+  onSwitchToMyLocation,
+  onSwitchToExplore,
+  onUpdateHomeLocation,
+  onExploreLocation,
   onChange,
   onPredict,
   isLoading,
@@ -10,12 +22,21 @@ export default function InputParameters({
 }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
-  const [locationQuery, setLocationQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
   const [groundTruthState, setGroundTruthState] = useState({
     verified: false,
     condition: null
   });
+
+  // State for in-place Home Location changer
+  const [isChangingHome, setIsChangingHome] = useState(false);
+  const [homeInputQuery, setHomeInputQuery] = useState('');
+  const [homeSearchResults, setHomeSearchResults] = useState([]);
+  const [isSearchingHome, setIsSearchingHome] = useState(false);
+
+  // State for Exploring other locations
+  const [exploreSearchQuery, setExploreSearchQuery] = useState('');
+  const [exploreSearchResults, setExploreSearchResults] = useState([]);
+  const [isSearchingExplore, setIsSearchingExplore] = useState(false);
 
   const handleSyncLiveWeather = async (overrideLat = null, overrideLng = null, overrideLoc = null) => {
     setIsSyncing(true);
@@ -71,7 +92,7 @@ export default function InputParameters({
       return;
     }
     setIsSyncing(true);
-    setSyncMessage('Reading GPS location...');
+    setSyncMessage('Acquiring high-accuracy GPS coordinates...');
 
     const onGeoSuccess = async (pos) => {
       const lat = parseFloat(pos.coords.latitude.toFixed(4));
@@ -82,32 +103,77 @@ export default function InputParameters({
       let geoRes = await reverseGeocodeCoords(lat, lng);
       let placeName = typeof geoRes === 'object' ? geoRes?.name : geoRes;
       if (!placeName || placeName.startsWith('Location (')) {
-        placeName = `Device Location (${lat}, ${lng})`;
+        placeName = `GPS Location (${lat}, ${lng})`;
       }
 
       onChange('location', placeName);
       await handleSyncLiveWeather(lat, lng, placeName);
-      setSyncMessage(`📍 Locked to device: ${placeName}`);
+      setSyncMessage(`📍 GPS locked: ${placeName}`);
       setTimeout(() => setSyncMessage(null), 5000);
     };
 
     const onGeoError = (err) => {
       console.warn('GPS initial attempt error:', err.message);
-      navigator.geolocation.getCurrentPosition(
-        onGeoSuccess,
-        (secondErr) => {
-          setIsSyncing(false);
-          setSyncMessage(secondErr.message || 'Position unavailable');
-        },
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-      );
+      setIsSyncing(false);
+      setSyncMessage('GPS unavailable. Click "Change it" to set town.');
+      setTimeout(() => setSyncMessage(null), 4000);
     };
 
     navigator.geolocation.getCurrentPosition(onGeoSuccess, onGeoError, {
       enableHighAccuracy: true,
-      timeout: 5000,
+      timeout: 6000,
       maximumAge: 0
     });
+  };
+
+  // Search and select new Home Location permanently
+  const handleSearchHome = async (query) => {
+    if (!query || query.trim().length < 2) return;
+    setIsSearchingHome(true);
+    try {
+      const results = await geocodeLocation(query);
+      setHomeSearchResults(results || []);
+    } catch (e) {
+      console.warn('Home geocode error:', e);
+    } finally {
+      setIsSearchingHome(false);
+    }
+  };
+
+  const handleSelectNewHome = async (loc) => {
+    setIsChangingHome(false);
+    setHomeSearchResults([]);
+    setHomeInputQuery('');
+    const payload = { ...loc, isUserExplicitHome: true };
+    if (onUpdateHomeLocation) {
+      await onUpdateHomeLocation(payload);
+    }
+    setSyncMessage(`✓ Home location saved as ${loc.name}`);
+    setTimeout(() => setSyncMessage(null), 4000);
+  };
+
+  // Search and explore another location temporarily
+  const handleSearchExplore = async (query) => {
+    if (!query || query.trim().length < 2) return;
+    setIsSearchingExplore(true);
+    try {
+      const results = await geocodeLocation(query);
+      setExploreSearchResults(results || []);
+    } catch (e) {
+      console.warn('Explore geocode error:', e);
+    } finally {
+      setIsSearchingExplore(false);
+    }
+  };
+
+  const handleSelectExploreLoc = async (loc) => {
+    setExploreSearchResults([]);
+    setExploreSearchQuery('');
+    if (onExploreLocation) {
+      await onExploreLocation(loc);
+    }
+    setSyncMessage(`✓ Exploring ${loc.name}`);
+    setTimeout(() => setSyncMessage(null), 4000);
   };
 
   const handleGroundTruthVerify = async (isRain) => {
@@ -152,16 +218,132 @@ export default function InputParameters({
   return (
     <div className="card" id="inputParamsCard" style={{ padding: '16px' }}>
       
-      {/* HEADER BAR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+      {/* 2-TAB LOCATION SELECTOR */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '8px',
+        marginBottom: '14px',
+        paddingBottom: '12px',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+      }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={onSwitchToMyLocation}
+            style={{
+              background: locationTab === 'myLocation' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+              color: '#ffffff',
+              border: locationTab === 'myLocation' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+              padding: '6px 14px',
+              borderRadius: '7px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: locationTab === 'myLocation' ? '0 2px 10px rgba(2, 132, 199, 0.4)' : 'none',
+              transition: 'all 0.15s'
+            }}
+          >
+            <span>🏠</span>
+            <span>My Location ({homeLocation?.name?.split(',')[0] || 'Kharupetia'})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSwitchToExplore && onSwitchToExplore()}
+            style={{
+              background: locationTab === 'explore' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+              color: '#ffffff',
+              border: locationTab === 'explore' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+              padding: '6px 14px',
+              borderRadius: '7px',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: locationTab === 'explore' ? '0 2px 10px rgba(2, 132, 199, 0.4)' : 'none',
+              transition: 'all 0.15s'
+            }}
+          >
+            <span>🔍</span>
+            <span>Explore Other Location</span>
+          </button>
+        </div>
+
+        {locationTab === 'explore' && onSwitchToMyLocation && (
+          <button
+            type="button"
+            onClick={onSwitchToMyLocation}
+            style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid #10b981',
+              color: '#34d399',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>↩️</span>
+            <span>Back to My Location</span>
+          </button>
+        )}
+      </div>
+
+      {/* LOCATION TITLE & IN-PLACE CHANGER BUTTON */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '1.2rem' }}>📍</span>
+          <span style={{ fontSize: '1.2rem' }}>{locationTab === 'myLocation' ? '🏠' : '🌐'}</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#f8fafc', lineHeight: 1.2 }}>
-              {params.location || 'Monitored Basin'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#f8fafc', lineHeight: 1.2 }}>
+                {params.location || (locationTab === 'myLocation' ? homeLocation?.name : activeLocation?.name) || 'Monitored Basin'}
+              </div>
+              {locationTab === 'explore' && (
+                <span style={{
+                  fontSize: '0.65rem',
+                  background: 'rgba(2, 132, 199, 0.2)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  fontWeight: 700
+                }}>
+                  EXPLORING
+                </span>
+              )}
+              {locationTab === 'myLocation' && (
+                <button
+                  type="button"
+                  onClick={() => setIsChangingHome(prev => !prev)}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                    color: '#38bdf8',
+                    borderRadius: '4px',
+                    padding: '2px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {isChangingHome ? '✕ Close' : '✏️ Not your location? Change it'}
+                </button>
+              )}
             </div>
             <div style={{ fontSize: '0.72rem', color: '#38bdf8', fontFamily: 'monospace', marginTop: '2px' }}>
-              Lat: {Number(params.latitude || 12.96).toFixed(3)}° | Lon: {Number(params.longitude || 77.71).toFixed(3)}°
+              Lat: {Number(params.latitude || 26.52).toFixed(3)}° | Lon: {Number(params.longitude || 92.14).toFixed(3)}°
             </div>
           </div>
         </div>
@@ -186,7 +368,163 @@ export default function InputParameters({
         )}
       </div>
 
-      {/* ACTIVE RAIN / DRY STATUS BAR (Matches Image 2) */}
+      {/* INLINE PERMANENT HOME CHANGER (Shown when clicking "Not your location? Change it") */}
+      {isChangingHome && (
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.95)',
+          border: '1px solid #38bdf8',
+          borderRadius: '8px',
+          padding: '12px',
+          marginBottom: '12px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+        }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8', marginBottom: '6px' }}>
+            Set Your Permanent Home Location:
+          </div>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+            <input
+              type="text"
+              placeholder="Search your city or town (e.g. Kharupetia, Guwahati, Silchar)..."
+              value={homeInputQuery}
+              onChange={(e) => setHomeInputQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearchHome(homeInputQuery)}
+              style={{
+                flex: 1,
+                background: '#070d19',
+                border: '1px solid #1e293b',
+                color: '#fff',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                outline: 'none'
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => handleSearchHome(homeInputQuery)}
+              disabled={isSearchingHome}
+              style={{
+                background: '#0284c7',
+                border: 'none',
+                color: '#fff',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              {isSearchingHome ? 'Searching...' : 'Search'}
+            </button>
+          </div>
+
+          {homeSearchResults.length > 0 && (
+            <div style={{ marginTop: '8px', maxHeight: '140px', overflowY: 'auto' }}>
+              {homeSearchResults.map((r, i) => (
+                <div
+                  key={i}
+                  onClick={() => handleSelectNewHome(r)}
+                  style={{
+                    padding: '6px 8px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                    cursor: 'pointer',
+                    fontSize: '0.74rem',
+                    color: '#f8fafc',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.02)'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'}
+                >
+                  📍 {r.name} {r.country ? `(${r.country})` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* EXPLORE OTHER LOCATION PANEL (Shown when in 'explore' tab) */}
+      {locationTab === 'explore' && (
+        <div style={{
+          background: 'rgba(2, 132, 199, 0.08)',
+          border: '1px solid rgba(56, 189, 248, 0.3)',
+          borderRadius: '8px',
+          padding: '12px',
+          marginBottom: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8' }}>
+              🔍 Explore Any Location Globally (Live Satellite Weather & Risk):
+            </span>
+            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+              Home remains locked to {homeLocation?.name?.split(',')[0] || 'Kharupetia'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+            <input
+              type="text"
+              placeholder="Search any city globally (e.g. Guwahati, Silchar, Mumbai, Tokyo)..."
+              value={exploreSearchQuery}
+              onChange={(e) => setExploreSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearchExplore(exploreSearchQuery)}
+              style={{
+                flex: 1,
+                background: '#070d19',
+                border: '1px solid #1e293b',
+                color: '#fff',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                outline: 'none'
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => handleSearchExplore(exploreSearchQuery)}
+              disabled={isSearchingExplore}
+              style={{
+                background: '#0284c7',
+                border: 'none',
+                color: '#fff',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              {isSearchingExplore ? 'Finding...' : 'Explore'}
+            </button>
+          </div>
+
+          {exploreSearchResults.length > 0 && (
+            <div style={{ marginTop: '8px', maxHeight: '140px', overflowY: 'auto' }}>
+              {exploreSearchResults.map((r, i) => (
+                <div
+                  key={i}
+                  onClick={() => handleSelectExploreLoc(r)}
+                  style={{
+                    padding: '6px 8px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                    cursor: 'pointer',
+                    fontSize: '0.74rem',
+                    color: '#f8fafc',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.02)'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'}
+                >
+                  📍 {r.name} {r.country ? `(${r.country})` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ACTIVE RAIN / DRY STATUS BAR */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -221,7 +559,7 @@ export default function InputParameters({
         </span>
       </div>
 
-      {/* 2x3 TELEMETRY METRICS GRID (Matches Image 2) */}
+      {/* 2x3 TELEMETRY METRICS GRID */}
       <div className="telemetry-metrics-grid" style={{ marginBottom: '12px' }}>
         <div className="metric-pill">
           <div className="metric-label">Past 24h Rain</div>
@@ -249,7 +587,7 @@ export default function InputParameters({
         </div>
       </div>
 
-      {/* GROUND-TRUTH CALIBRATION WIDGET (Matches Image 2) */}
+      {/* GROUND-TRUTH CALIBRATION WIDGET */}
       <div style={{
         padding: '12px',
         background: groundTruthState.verified ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.03)',
@@ -323,41 +661,30 @@ export default function InputParameters({
         </div>
       </div>
 
-      {/* QUICK LOCATION ACTIONS & SEARCH ROW */}
+      {/* QUICK SYNC ACTION BAR */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-        <input
-          type="text"
-          placeholder="Search city (e.g. Mumbai, Guwahati)..."
-          value={locationQuery}
-          onChange={(e) => setLocationQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSyncLiveWeather(null, null, locationQuery);
-          }}
+        <button
+          onClick={() => handleSyncLiveWeather()}
+          disabled={isSyncing}
           style={{
             flex: 1,
-            padding: '7px 10px',
-            fontSize: '0.78rem',
-            background: '#070d19',
-            border: '1px solid #1e293b',
-            color: '#f8fafc',
-            borderRadius: '6px',
-            outline: 'none'
-          }}
-        />
-        <button
-          onClick={() => handleSyncLiveWeather(null, null, locationQuery)}
-          style={{
             background: '#0f172a',
             border: '1px solid #1e293b',
             color: '#38bdf8',
             borderRadius: '6px',
-            padding: '0 10px',
+            padding: '7px 10px',
             fontSize: '0.75rem',
             fontWeight: 700,
-            cursor: 'pointer'
+            cursor: isSyncing ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
           }}
+          title="Sync live Open-Meteo satellite weather for this location"
         >
-          Find
+          <span>🔄</span>
+          <span>{isSyncing ? 'Syncing...' : 'Sync Live Satellite Weather'}</span>
         </button>
         <button
           onClick={handleUseCurrentLocation}
@@ -367,12 +694,12 @@ export default function InputParameters({
             border: '1px solid #1e293b',
             color: '#10b981',
             borderRadius: '6px',
-            padding: '0 10px',
+            padding: '0 12px',
             fontSize: '0.75rem',
             fontWeight: 700,
             cursor: isSyncing ? 'not-allowed' : 'pointer'
           }}
-          title="Sync device GPS"
+          title="Sync device hardware GPS"
         >
           📍 GPS
         </button>

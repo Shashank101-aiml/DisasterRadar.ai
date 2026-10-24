@@ -10,6 +10,11 @@ import {
 
 export default function PredictRiskView({
   currentLocation,
+  homeLocation: propHomeLocation,
+  locationTab: propLocationTab,
+  onSwitchToMyLocation: propSwitchToMyLocation,
+  onSwitchToExplore: propSwitchToExplore,
+  onUpdateHomeLocation,
   params: initialParams,
   prediction: initialPrediction,
   onBackToDashboard,
@@ -47,10 +52,83 @@ export default function PredictRiskView({
   const [isComparing, setIsComparing] = useState(false);
   const [compareError, setCompareError] = useState(null);
   const [gpsStatus, setGpsStatus] = useState(null);
-  const [groundTruthState, setGroundTruthState] = useState({ verified: false, condition: null });
+  const [groundTruthState, setGroundTruthState] = useState({
+    verified: false,
+    condition: null
+  });
+  const [homeLocation, setHomeLocation] = useState(() => {
+    if (propHomeLocation && propHomeLocation.lat) {
+      if (propHomeLocation.isUserExplicitHome) return propHomeLocation;
+      const n = (propHomeLocation.name || '').toLowerCase();
+      if (!n.includes('guwahati') && !n.includes('boka') && !n.includes('boko') && !n.includes('bengaluru')) {
+        return propHomeLocation;
+      }
+    }
+    try {
+      const saved = localStorage.getItem('disasterradar_home_location');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.isUserExplicitHome && parsed?.lat) return parsed;
+        const n = (parsed?.name || '').toLowerCase();
+        if (parsed?.lat && !n.includes('guwahati') && !n.includes('boka') && !n.includes('boko') && !n.includes('bengaluru')) return parsed;
+      }
+    } catch (e) {}
+    return { name: 'Kharupetia, Assam', country: 'India', lat: 26.5181, lng: 92.1384 };
+  });
+  const [locationTab, setLocationTab] = useState(propLocationTab || 'myLocation'); // 'myLocation' | 'explore'
+  const [isChangingHome, setIsChangingHome] = useState(false);
+  const [newHomeQuery, setNewHomeQuery] = useState('');
+  const [newHomeResults, setNewHomeResults] = useState([]);
+  const [isNewHomeSearching, setIsNewHomeSearching] = useState(false);
+
+  useEffect(() => {
+    if (propHomeLocation && propHomeLocation.lat) {
+      if (propHomeLocation.isUserExplicitHome) {
+        setHomeLocation(propHomeLocation);
+      } else {
+        const n = (propHomeLocation.name || '').toLowerCase();
+        if (!n.includes('guwahati') && !n.includes('boka') && !n.includes('boko') && !n.includes('bengaluru')) {
+          setHomeLocation(propHomeLocation);
+        }
+      }
+    }
+  }, [propHomeLocation]);
+
+  useEffect(() => {
+    if (propLocationTab) setLocationTab(propLocationTab);
+  }, [propLocationTab]);
+
   // Production is locked to Super-Stack Ensemble (93.85% Acc, 0.982 ROC-AUC)
   // Other models are available for benchmarking in Model Performance Studio
   const selectedEngine = 'ensemble';
+
+  // Switch back to Home Location
+  const handleSwitchToMyLocation = async () => {
+    setLocationTab('myLocation');
+    setIsChangingHome(false);
+    if (propSwitchToMyLocation) {
+      await propSwitchToMyLocation();
+    }
+    await handleSelectLocation(homeLocation, true);
+  };
+
+  // Permanently save a new Home Location (only via explicit Set as Home action)
+  const handleSetNewHome = async (newLoc) => {
+    const payload = { ...newLoc, isUserExplicitHome: true };
+    setHomeLocation(payload);
+    try {
+      localStorage.setItem('disasterradar_home_location', JSON.stringify(payload));
+      localStorage.setItem('disasterradar_user_location', JSON.stringify(payload));
+    } catch (e) {}
+    if (onUpdateHomeLocation) {
+      await onUpdateHomeLocation(payload);
+    }
+    setIsChangingHome(false);
+    setNewHomeQuery('');
+    setNewHomeResults([]);
+    setLocationTab('myLocation');
+    await handleSelectLocation(payload, true);
+  };
 
   // Active Parameters & Prediction based on current mode (Live vs Scenario)
   const displayParams = activeMode === 'scenario' && scenarioParams ? scenarioParams : liveParams;
@@ -109,12 +187,14 @@ export default function PredictRiskView({
   useEffect(() => {
     if (currentLocation && currentLocation.lat && currentLocation.lng) {
       if (currentLocation.lat !== liveParams.latitude || currentLocation.lng !== liveParams.longitude) {
+        const isHome = Math.abs(Number(currentLocation.lat) - Number(homeLocation.lat)) < 0.005 &&
+                       Math.abs(Number(currentLocation.lng) - Number(homeLocation.lng)) < 0.005;
         handleSelectLocation({
           name: currentLocation.name,
           country: currentLocation.country || '',
           lat: currentLocation.lat,
           lng: currentLocation.lng
-        });
+        }, isHome);
       }
     }
   }, [currentLocation?.lat, currentLocation?.lng]);
@@ -224,7 +304,7 @@ export default function PredictRiskView({
   }, [locationQuery]);
 
   // Handle Location Selection: updates live ground telemetry
-  const handleSelectLocation = async (loc) => {
+  const handleSelectLocation = async (loc, isExplicitHome = false) => {
     setIsLoading(true);
     setLocationQuery('');
     setSearchResults([]);
@@ -232,6 +312,21 @@ export default function PredictRiskView({
     setSelectedScenario('live');
     setScenarioParams(null);
     setScenarioPrediction(null);
+
+    // Check if this is the user's permanent home location
+    const isActuallyHome = isExplicitHome || (
+      Math.abs(Number(loc.lat) - Number(homeLocation.lat)) < 0.005 &&
+      Math.abs(Number(loc.lng) - Number(homeLocation.lng)) < 0.005
+    );
+
+    if (isActuallyHome) {
+      setLocationTab('myLocation');
+    } else {
+      setLocationTab('explore');
+      if (propSwitchToExplore) {
+        propSwitchToExplore(loc);
+      }
+    }
 
     const telemetry = await fetchGlobalLiveTelemetry(loc.lat, loc.lng);
     const updated = {
@@ -250,11 +345,11 @@ export default function PredictRiskView({
     };
 
     setLiveParams(updated);
-    await handleRunLivePrediction(updated, loc);
+    await handleRunLivePrediction(updated, loc, selectedEngine, !isActuallyHome);
   };
 
   // Run ML model prediction for LIVE Location (and sync with parent dashboard)
-  const handleRunLivePrediction = async (currentLiveParams = liveParams, loc = null, engine = selectedEngine) => {
+  const handleRunLivePrediction = async (currentLiveParams = liveParams, loc = null, engine = selectedEngine, isExplore = false) => {
     setIsLoading(true);
     setModelComparison(null);
     setCompareError(null);
@@ -274,7 +369,8 @@ export default function PredictRiskView({
           onLocationChange(
             loc || { name: safeParams.location.split(',')[0], lat: safeParams.latitude, lng: safeParams.longitude },
             safeParams,
-            res
+            res,
+            isExplore
           );
         }
       }
@@ -490,23 +586,153 @@ export default function PredictRiskView({
         </div>
       </div>
 
-      {/* TOP GLOBAL LOCATION BAR */}
+      {/* TOP GLOBAL LOCATION BAR WITH 2-TAB SYSTEM */}
       <div style={{
         background: '#0b1120',
-        border: '1px solid rgba(56, 189, 248, 0.18)',
+        border: '1px solid rgba(56, 189, 248, 0.22)',
         borderRadius: '14px',
         padding: '16px 20px',
         marginBottom: '24px',
         boxShadow: '0 8px 30px rgba(0,0,0,0.5)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
+        {/* TWO-TAB SYSTEM: My Location vs Explore Other Locations */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+          marginBottom: '16px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingBottom: '12px'
+        }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleSwitchToMyLocation}
+              style={{
+                background: locationTab === 'myLocation' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                border: locationTab === 'myLocation' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '7px 16px',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: locationTab === 'myLocation' ? '0 2px 10px rgba(2, 132, 199, 0.4)' : 'none',
+                transition: 'all 0.15s'
+              }}
+            >
+              <span>🏠</span>
+              <span>My Location ({homeLocation.name.split(',')[0]})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLocationTab('explore');
+                if (propSwitchToExplore) propSwitchToExplore();
+                setTimeout(() => {
+                  const el = document.getElementById('predictStudioLocationInput');
+                  if (el) el.focus();
+                }, 50);
+              }}
+              style={{
+                background: locationTab === 'explore' ? '#0284c7' : 'rgba(255, 255, 255, 0.05)',
+                color: '#ffffff',
+                border: locationTab === 'explore' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '7px 16px',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: locationTab === 'explore' ? '0 2px 10px rgba(2, 132, 199, 0.4)' : 'none',
+                transition: 'all 0.15s'
+              }}
+            >
+              <span>🔍</span>
+              <span>Explore Other Location</span>
+            </button>
+          </div>
+
+          {locationTab === 'explore' && (
+            <button
+              type="button"
+              onClick={handleSwitchToMyLocation}
+              style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid #10b981',
+                color: '#34d399',
+                padding: '5px 12px',
+                borderRadius: '6px',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              <span>↩️</span>
+              <span>Back to My Location ({homeLocation.name.split(',')[0]})</span>
+            </button>
+          )}
+        </div>
+
+        {/* ACTIVE LOCATION ROW */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.4rem' }}>📍</span>
+            <span style={{ fontSize: '1.4rem' }}>{locationTab === 'myLocation' ? '🏠' : '🌐'}</span>
             <div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
-                {params.location}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
+                  {params.location}
+                </div>
+                {locationTab === 'explore' && (
+                  <span style={{
+                    fontSize: '0.68rem',
+                    background: 'rgba(2, 132, 199, 0.2)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontWeight: 700
+                  }}>
+                    EXPLORING
+                  </span>
+                )}
+                {locationTab === 'myLocation' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsChangingHome(prev => !prev)}
+                    style={{
+                      background: 'rgba(56, 189, 248, 0.14)',
+                      border: '1px solid rgba(56, 189, 248, 0.45)',
+                      color: '#38bdf8',
+                      borderRadius: '6px',
+                      padding: '3px 10px',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      transition: 'all 0.15s'
+                    }}
+                    title="Change your saved home location"
+                  >
+                    <span>✏️</span>
+                    <span>{isChangingHome ? 'Cancel' : 'Not your location? Change it'}</span>
+                  </button>
+                )}
               </div>
-              <div style={{ fontSize: '0.78rem', color: '#38bdf8', fontFamily: 'JetBrains Mono, monospace' }}>
+              <div style={{ fontSize: '0.78rem', color: '#38bdf8', fontFamily: 'JetBrains Mono, monospace', marginTop: '2px' }}>
                 Lat: {Number(params.latitude).toFixed(3)}° | Lon: {Number(params.longitude).toFixed(3)}° | Elevation: {params.elevation}m
               </div>
             </div>
@@ -515,6 +741,7 @@ export default function PredictRiskView({
           {/* Live Device Location Auto-Detect Button */}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button
+              type="button"
               onClick={handleDetectDeviceGPS}
               disabled={isLoading}
               style={{
@@ -534,10 +761,11 @@ export default function PredictRiskView({
               }}
               title="Lock onto your device's exact GPS coordinates and pull real-time weather"
             >
-              📍 {gpsStatus || 'Sync My Device Location'}
+              📍 {gpsStatus || 'Sync My Device GPS'}
             </button>
 
             <button
+              type="button"
               onClick={() => {
                 const updated = {
                   ...params,
@@ -567,12 +795,116 @@ export default function PredictRiskView({
           </div>
         </div>
 
+        {/* INLINE HOME LOCATION CHANGER IF USER CLICKS NOT YOUR LOCATION */}
+        {isChangingHome && (
+          <div style={{
+            background: 'rgba(2, 132, 199, 0.08)',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
+            borderRadius: '10px',
+            padding: '12px 16px',
+            marginBottom: '14px'
+          }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8', marginBottom: '8px' }}>
+              Set Your Home Town:
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Type your town (e.g. Kharupetia, Guwahati, Mumbai)..."
+                value={newHomeQuery}
+                onChange={(e) => setNewHomeQuery(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!newHomeQuery.trim()) return;
+                    setIsNewHomeSearching(true);
+                    try {
+                      const res = await geocodeLocation(newHomeQuery.trim());
+                      if (Array.isArray(res) && res.length > 0) {
+                        setNewHomeResults(res.slice(0, 4));
+                      }
+                    } catch (err) {}
+                    setIsNewHomeSearching(false);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  background: '#040711',
+                  border: '1px solid #1e293b',
+                  borderRadius: '6px',
+                  padding: '7px 12px',
+                  color: '#fff',
+                  fontSize: '0.82rem',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!newHomeQuery.trim()) return;
+                  setIsNewHomeSearching(true);
+                  try {
+                    const res = await geocodeLocation(newHomeQuery.trim());
+                    if (Array.isArray(res) && res.length > 0) {
+                      setNewHomeResults(res.slice(0, 4));
+                    }
+                  } catch (err) {}
+                  setIsNewHomeSearching(false);
+                }}
+                disabled={isNewHomeSearching}
+                style={{
+                  background: '#0284c7',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '0 14px',
+                  borderRadius: '6px',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {isNewHomeSearching ? 'Searching...' : 'Find'}
+              </button>
+            </div>
+
+
+            {/* Matching Geocode Results */}
+            {newHomeResults.length > 0 && (
+              <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '6px' }}>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px' }}>Select result:</div>
+                {newHomeResults.map((r, i) => (
+                  <div
+                    key={i}
+                    onClick={() => handleSetNewHome({ name: r.name, country: r.country || '', lat: r.lat, lng: r.lng })}
+                    style={{
+                      padding: '5px 8px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      borderRadius: '4px',
+                      marginBottom: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.76rem',
+                      color: '#f8fafc',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>📍 {r.name}</span>
+                    <span style={{ color: '#10b981', fontWeight: 700 }}>Set as Home ✓</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Global Search Bar */}
         <div style={{ position: 'relative' }}>
           <div style={{ display: 'flex', gap: '10px' }}>
             <input
+              id="predictStudioLocationInput"
               type="text"
-              placeholder="Search any global city or district to auto-fetch live weather & DEM elevation (e.g. Mumbai, Tokyo, Houston)..."
+              placeholder="Search any city, town or village (e.g. Kharupetia, Guwahati, Mumbai, Delhi)..."
               value={locationQuery}
               onChange={(e) => setLocationQuery(e.target.value)}
               style={{
